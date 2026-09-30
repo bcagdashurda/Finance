@@ -1,7 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { MagnifyingGlass, Plus, UploadSimple } from '@phosphor-icons/react';
+import { Archive, MagnifyingGlass, Plus, UploadSimple } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { useParamAction } from '@/app/useParamAction';
 import { PageHeader } from '@/ui/PageHeader';
@@ -28,6 +28,7 @@ export default function CarilerPage() {
   const [q, setQ] = useState('');
   const [sheet, setSheet] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   useParamAction('yeni', () => setSheet(true));
   useParamAction('ice-aktar', () => setImportOpen(true));
 
@@ -45,7 +46,7 @@ export default function CarilerPage() {
   const rows = useMemo(() => {
     const nq = normalizeTr(q);
     const list = f.contacts
-      .filter((c) => !c.archived)
+      .filter((c) => showArchived || !c.archived)
       .filter((c) => (tab === 'all' ? true : tab === 'customer' ? c.kind === 'customer' || c.kind === 'both' : c.kind === 'supplier' || c.kind === 'both'))
       .filter((c) => !nq || normalizeTr(`${c.name} ${c.taxId ?? ''} ${c.phone ?? ''}`).includes(nq))
       .map((c) => {
@@ -59,7 +60,7 @@ export default function CarilerPage() {
       delay: (a, b) => (b.behavior?.avgDelay ?? -99) - (a.behavior?.avgDelay ?? -99),
     };
     return list.sort(cmp[sort]);
-  }, [f.contacts, f.contactBalances, f.rates, f.behavior, overdueBy, tab, sort, q]);
+  }, [f.contacts, f.contactBalances, f.rates, f.behavior, overdueBy, tab, sort, q, showArchived]);
 
   const totals = useMemo(() => {
     let recv = 0;
@@ -79,6 +80,11 @@ export default function CarilerPage() {
         title="Cariler"
         actions={
           <>
+            {f.contacts.some((c) => c.archived) && (
+              <Button variant="ghost" icon={<Archive size={16} />} onClick={() => setShowArchived((v) => !v)}>
+                {showArchived ? 'Arşivi gizle' : 'Arşivi göster'}
+              </Button>
+            )}
             <Button variant="secondary" icon={<UploadSimple size={16} />} onClick={() => setImportOpen(true)}>
               Excel'den aktar
             </Button>
@@ -134,7 +140,11 @@ export default function CarilerPage() {
             const usage = c.riskLimit ? Math.max(0, bal) / c.riskLimit : null;
             return (
               <motion.li key={c.id} initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: Math.min(i, 12) * 0.025 }}>
-                <Link to={`/cariler/${c.id}`} viewTransition className="grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:px-6 lg:grid-cols-[1fr_140px_170px_150px_150px]">
+                <Link
+                  to={`/cariler/${c.id}`}
+                  viewTransition
+                  className={cn('grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:px-6 lg:grid-cols-[1fr_140px_170px_150px_150px]', c.archived && 'opacity-60')}
+                >
                   <div className="flex min-w-0 items-center gap-3">
                     <span style={{ viewTransitionName: `contact-${c.id}` }}>
                       <Monogram name={c.name} size={38} />
@@ -145,6 +155,7 @@ export default function CarilerPage() {
                         {c.kind === 'customer' ? 'Müşteri' : c.kind === 'supplier' ? 'Tedarikçi' : c.kind === 'both' ? 'Müşteri ve tedarikçi' : 'Diğer'}
                         {c.paymentTermDays ? ` · ${c.paymentTermDays} gün vade` : ''}
                         {c.currency !== 'TRY' && <Badge tone="muted" className="h-5">{c.currency}</Badge>}
+                        {c.archived && <Badge tone="muted" className="h-5">Arşiv</Badge>}
                       </div>
                     </div>
                   </div>

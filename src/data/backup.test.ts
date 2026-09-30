@@ -38,6 +38,22 @@ describe('backup round-trip', () => {
     expect(text).not.toContain('pinHash');
   });
 
+  it('keeps device-level settings and follows the backup on demo mode', async () => {
+    await loadDemo();
+    const backup = JSON.parse(JSON.stringify(await exportBackup()));
+    // Gerçek işletmenin yedeği: demo bayrağı yok, eski tarihli son yedek ve bulut ayarı var
+    backup.settings = backup.settings.filter((s: { key: string }) => s.key !== 'isDemo' && s.key !== 'lastBackupAt' && s.key !== 'cloud');
+    backup.settings.push({ key: 'lastBackupAt', value: '2026-01-01T09:00:00.000Z' }, { key: 'cloud', value: { url: 'eski' } });
+
+    await db.settings.put({ key: 'lastBackupAt', value: '2026-09-30T10:00:00.000Z' });
+    await db.settings.put({ key: 'cloud', value: { url: 'bu-cihaz' } });
+    await restoreBackup(backup);
+
+    expect(await db.settings.get('isDemo')).toBeUndefined();
+    expect((await db.settings.get('lastBackupAt'))?.value).toBe('2026-09-30T10:00:00.000Z');
+    expect((await db.settings.get('cloud'))?.value).toEqual({ url: 'bu-cihaz' });
+  });
+
   it('rejects files that are not Mizan backups', () => {
     expect(validateBackup({ hello: 'world' })).toBe(false);
   });

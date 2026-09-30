@@ -138,3 +138,28 @@ Düzeltilen: Ekstrede ileri tarihli satır (teyit bekleyen sipariş) bakiye süt
 
 Eklenen: belge başlığı (işletme, rapor adı, esas, dönem, hazırlanma tarihi), "Sayfa X / Y" altbilgisi, koyu temada bile açık renk baskı, tablo başlığının her sayfada tekrarı, satırların bölünmemesi.
 Kalıcı test: `e2e/yazdirma.spec.ts` gerçek PDF üretip sayfa sayısı, boyut, taşma ve sayfa yönünü denetler. Yatay sayfa kuralı bilerek kapatıldığında test kırmızıya düştü (kanıt). İlk yazdığım sürüm bu hatayı yakalayamıyordu; mutasyon denemesiyle fark edilip güçlendirildi.
+
+## S11 · Aynı ekstreyi ikinci kez yükleme — 🔧
+
+Oynanan: Eylül ekstresi (13 satır) ikinci kez içe aktarıldı.
+Doğrulanan: 13 satırın tamamı "zaten kayıtlı" olarak atlandı, bakiye ve işlem sayısı değişmedi (mükerrer kayıt yok).
+Düzeltilen: Tüm satırlar mükerrerken ekran "0 kayıt aktarılacak" diye sessizce bekliyordu; artık "Bu ekstredeki hareketlerin hepsi zaten kayıtlı; aktarılacak yeni hareket yok." açıklaması çıkıyor.
+
+## S12 · Ayarlar, güvenlik, yedek ve koyu tema — 🔧
+
+Oynanan: kategori bütçesi, PIN kilidi (kur → şimdi kilitle → yanlış PIN → doğru PIN), yedek indir → cari sil/arşivle → yedekten geri yükle, yanlış dosya, koyu tema.
+
+Bulunan ve düzeltilen:
+- Kategori satırlarında yalnızca küçük kalem simgesi tıklanıyordu; satırın tamamı tıklanabilir, bütçe yoksa "bütçe ekle" ipucu var.
+- **PIN kurunca kullanıcı anında kilitleniyordu** (oturum bayrağı kilitten sonra yazılıyordu). Sıra düzeltildi.
+- **"Şimdi kilitle" hiç kilitlemiyordu:** kilit durumu iki ayrı yerde tutuluyor ve ayrışıyordu. Tek kaynağa indirildi.
+- **Yanlış PIN'e tepki yoktu:** 4 haneli PIN'de yanlış girişten sonra 6 haneye kadar hata gösterilmiyor, ardından doğru PIN de açmıyordu. PIN'in hane sayısı artık kilitle birlikte saklanıyor (telefonlardaki gibi o kadar nokta), o haneye gelince anında "PIN hatalı" + sallanma; hızlı yazımda rakam kaybolmuyor. Eski kilitlerde önceki davranış korunuyor. "PIN'imi unuttum" açıklaması eklendi.
+- **Yedekten geri yükleme onaysızdı:** yanlış dosya seçmek mevcut veriyi anında siliyordu. Artık önce işletme adı, yedek tarihi ve içerik (19 işlem · 8 cari · 2 fatura · 4 hesap) gösterilip onay isteniyor. Mizan yedeği olmayan dosya pencere açılmadan reddediliyor.
+- **Geri yükleme cihaz ayarlarını eziyordu:** "son yedek" tarihi ve bulut bağlantısı yedekteki eski değerlerle değişiyordu; demodayken gerçek işletme yedeği yüklenince "demo" bayrağı kalıyordu. Düzeltildi (birim testli, önce kırmızı görüldü).
+- **Cari silinemiyordu (eksik özellik):** yanlışlıkla eklenen cariyi kaldırmanın yolu yoktu. Cari sayfasına "Arşivle ya da sil" eklendi: kaydı yoksa onayla silinir, varsa arşivlenir (geçmiş ve raporlar korunur); Carilerde "Arşivi göster", arşivden çıkarma.
+- Silme ölçütü düzenli ödemeleri ve ciro edilen çekleri saymıyordu → bağlı kayıt kalan cari/hesap silinip kırık bağlantı bırakabilirdi. Artık arşivleniyor (birim testli). Hesap silme de onaysızdı; onay eklendi.
+- Nakit akışı grafiğinde en düşük nokta son güne denk gelince "En düşük · 29 Ara" etiketi grafiğin sağından taşıp kesiliyordu; kenarda içeri alınıyor.
+
+Doğrulanan (canlı): yedek → Toros Deterjan silindi (8 → 7), Kuzey Mobilya arşivlendi (7 → 6, "Arşivi göster" ile 7) → geri yükleme sonrası 8 cari, arşiv yok, "Son yedek bugün" korunuyor. Koyu temada Kokpit, Nakit akışı, Takvim, Cariler, Raporlar, Çekler okunaklı.
+
+Ekran: `s12-yedek-onay.png`, `s12-cari-sil-onay.png`, `s12-koyu-*.png`, `s12-akis-endusuk-etiket.png`

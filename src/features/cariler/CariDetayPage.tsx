@@ -1,8 +1,10 @@
 import { useMemo, useState } from 'react';
-import { Link, useParams } from 'react-router';
+import { Link, useNavigate, useParams } from 'react-router';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
 import {
+  Archive,
+  ArrowCounterClockwise,
   ArrowLeft,
   ArrowDownLeft,
   ArrowUpRight,
@@ -28,7 +30,8 @@ import { contactStatement } from '@/domain/ledger';
 import { agingReport } from '@/domain/aging';
 import { diffDays } from '@/domain/dates';
 import { formatIban } from '@/domain/validators';
-import { updateDocument } from '@/data/repo';
+import { deleteOrArchiveContact, updateContact, updateDocument } from '@/data/repo';
+import { Modal } from '@/ui/Overlay';
 import { download, minorToCell, toCSV } from '@/data/export';
 import { ContactSheet } from './ContactSheet';
 import { ReminderSheet } from './ReminderSheet';
@@ -51,7 +54,15 @@ export default function CariDetayPage() {
   const [tab, setTab] = useState<Tab>('statement');
   const [editOpen, setEditOpen] = useState(false);
   const [remindOpen, setRemindOpen] = useState(false);
+  const [removeOpen, setRemoveOpen] = useState(false);
+  const navigate = useNavigate();
   const c = f.contactsById.get(id);
+  /** Bağlı kayıt varsa silinmez, arşivlenir (deleteOrArchiveContact ile aynı ölçüt). */
+  const linked =
+    f.transactions.some((t) => t.contactId === id) ||
+    f.documents.some((d) => d.contactId === id) ||
+    f.instruments.some((i) => i.contactId === id || i.endorsedToId === id) ||
+    f.recurring.some((r) => r.contactId === id);
 
   const statement = useMemo(() => (c ? contactStatement(c, f.documents, f.transactions, f.instruments, f.rates) : []), [c, f.documents, f.transactions, f.instruments, f.rates]);
   const docs = useMemo(
@@ -115,6 +126,7 @@ export default function CariDetayPage() {
             </motion.h1>
             <div className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-muted">
               <Badge tone="cobalt">{c.kind === 'customer' ? 'Müşteri' : c.kind === 'supplier' ? 'Tedarikçi' : c.kind === 'both' ? 'Müşteri + tedarikçi' : 'Diğer'}</Badge>
+              {c.archived && <Badge tone="muted">Arşiv</Badge>}
               {c.taxId && <span>VKN {c.taxId}</span>}
               {c.phone && (
                 <a href={`tel:${c.phone}`} className="inline-flex items-center gap-1 hover:text-ink">
@@ -163,8 +175,52 @@ export default function CariDetayPage() {
           <IconButton label="Cariyi düzenle" variant="secondary" onClick={() => setEditOpen(true)}>
             <PencilSimple size={16} />
           </IconButton>
+          <IconButton
+            label={c.archived ? 'Arşivden çıkar' : 'Arşivle ya da sil'}
+            variant="secondary"
+            onClick={async () => {
+              if (!c.archived) return setRemoveOpen(true);
+              await updateContact(c.id, { archived: false });
+              toast.success('Cari yeniden etkin');
+            }}
+          >
+            {c.archived ? <ArrowCounterClockwise size={16} /> : <Archive size={16} />}
+          </IconButton>
         </div>
       </header>
+
+      <Modal
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title={linked ? 'Cari arşivlensin mi?' : 'Cari silinsin mi?'}
+        description={
+          linked
+            ? 'Bu carinin kayıtları olduğu için silinmez, arşivlenir: listelerden ve seçimlerden kalkar, geçmiş kayıtlar ve raporlar korunur. İstediğiniz zaman arşivden çıkarabilirsiniz.'
+            : 'Bu cariye bağlı hiçbir kayıt yok; kalıcı olarak silinir.'
+        }
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRemoveOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant={linked ? 'primary' : 'danger'}
+              onClick={async () => {
+                const r = await deleteOrArchiveContact(c.id);
+                setRemoveOpen(false);
+                if (r === 'deleted') {
+                  toast.success('Cari silindi');
+                  navigate('/cariler', { viewTransition: true });
+                } else toast.success('Cari arşivlendi', { description: 'Carilerde “Arşivi göster” ile görebilirsiniz.' });
+              }}
+            >
+              {linked ? 'Arşivle' : 'Evet, sil'}
+            </Button>
+          </>
+        }
+      >
+        <span />
+      </Modal>
 
       <div className="mb-5 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Kpi label={bal >= 0 ? 'Bize borcu' : 'Bizim borcumuz'} index={0}>

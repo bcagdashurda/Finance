@@ -62,7 +62,8 @@ export interface FinanceSnapshot {
     /** Tempo tahmini projeksiyona dahil mi */
     tempo: boolean;
     ai: AiConfig;
-    lock: { pinHash: string; salt: string } | null;
+    /** length: PIN hane sayısı (kilit ekranı o sayıda nokta gösterip anında doğrular) */
+    lock: { pinHash: string; salt: string; length?: number } | null;
     lastBackupAt: string | null;
     cloud: CloudConfig | null;
   };
@@ -163,7 +164,7 @@ async function loadSnapshot(): Promise<LoadState> {
         tempo: (setting(SETTINGS_KEYS.tempo) as boolean | undefined) ?? true,
         ai: resolveAiConfig(setting(SETTINGS_KEYS.ai) as Partial<AiConfig> | undefined),
         cloud: (setting(SETTINGS_KEYS.cloud) as CloudConfig | undefined) ?? null,
-        lock: (setting(SETTINGS_KEYS.lock) as { pinHash: string; salt: string } | undefined) ?? null,
+        lock: (setting(SETTINGS_KEYS.lock) as { pinHash: string; salt: string; length?: number } | undefined) ?? null,
         lastBackupAt: (setting(SETTINGS_KEYS.lastBackup) as string | undefined) ?? null,
       },
     },

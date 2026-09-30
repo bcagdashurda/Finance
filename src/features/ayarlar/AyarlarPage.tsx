@@ -44,10 +44,10 @@ import { diffDays, toISODate } from '@/domain/dates';
 import type { Category } from '@/domain/types';
 import { createCategory, setSetting, setWorkspaceSetting, updateCategory, updateWorkspace } from '@/data/repo';
 import { SETTINGS_KEYS, loadDemo, wipeEverything } from '@/data/load';
-import { exportBackup, restoreBackup, validateBackup } from '@/data/backup';
+import { exportBackup, restoreBackup, validateBackup, type Backup } from '@/data/backup';
 import { fetchLatestRates, setManualRate } from '@/data/rates';
 import { download } from '@/data/export';
-import { hashPin, newSalt } from '@/app/lock';
+import { hashPin, lockNow, newSalt } from '@/app/lock';
 
 const SECTIONS = [
   { id: 'isletme', label: 'İşletme', icon: Buildings },
@@ -69,7 +69,7 @@ export default function AyarlarPage() {
 
   return (
     <div>
-      <PageHeader kicker="Tüm ayarlar bu cihazda saklanır" title="Ayarlar" />
+      <PageHeader kicker="İşletme, yapay zekâ, bulut, güvenlik ve yedek" title="Ayarlar" />
       <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
         <nav className="sticky top-24 hidden h-fit space-y-1 lg:block" aria-label="Ayar bölümleri">
           {SECTIONS.map((s) => (
@@ -484,14 +484,26 @@ function CategoriesSection() {
             </div>
             <ul className="divide-y divide-line rounded-[16px] border border-line">
               {group(kind).map((c) => (
-                <li key={c.id} className="flex items-center gap-3 px-3 py-2">
-                  <span className="flex h-8 w-8 items-center justify-center rounded-[10px]" style={{ color: slotColor(c.color), background: `color-mix(in oklab, ${slotColor(c.color)} 12%, transparent)` }}>
-                    <CategoryIcon name={c.icon} size={15} />
-                  </span>
-                  <span className="min-w-0 flex-1 truncate text-sm">{c.name}</span>
-                  {c.monthlyBudget ? <Money value={c.monthlyBudget} decimals={0} className="text-2xs text-muted" /> : null}
-                  <button type="button" aria-label={`${c.name} düzenle`} onClick={() => setEdit(c)} className="rounded-[8px] p-1.5 text-muted hover:bg-sunken hover:text-ink">
-                    <PencilSimple size={14} />
+                <li key={c.id}>
+                  {/* Satırın tamamı düzenleyiciyi açar (yalnızca küçük kalem simgesi değil) */}
+                  <button
+                    type="button"
+                    aria-label={`${c.name} düzenle`}
+                    onClick={() => setEdit(c)}
+                    className="group flex w-full items-center gap-3 px-3 py-2 text-left transition-colors first:rounded-t-[16px] hover:bg-surface-2"
+                  >
+                    <span className="flex h-8 w-8 items-center justify-center rounded-[10px]" style={{ color: slotColor(c.color), background: `color-mix(in oklab, ${slotColor(c.color)} 12%, transparent)` }}>
+                      <CategoryIcon name={c.icon} size={15} />
+                    </span>
+                    <span className="min-w-0 flex-1 truncate text-sm">{c.name}</span>
+                    {c.monthlyBudget ? (
+                      <span className="text-2xs text-muted">
+                        bütçe <Money value={c.monthlyBudget} decimals={0} />
+                      </span>
+                    ) : kind === 'expense' ? (
+                      <span className="text-2xs text-faint opacity-0 transition-opacity group-hover:opacity-100">bütçe ekle</span>
+                    ) : null}
+                    <PencilSimple size={14} className="text-muted group-hover:text-ink" />
                   </button>
                 </li>
               ))}
@@ -651,39 +663,49 @@ function SecuritySection() {
       {has ? (
         <div className="flex flex-wrap items-center justify-between gap-3">
           <Badge tone="in" icon={<LockSimple size={12} />}>
-            PIN kilidi açık · 15 dk hareketsizlikte kilitlenir
+            PIN kilidi etkin · 15 dk hareketsizlikte kilitlenir
           </Badge>
-          <Button
-            variant="secondary"
-            onClick={async () => {
-              await setSetting(SETTINGS_KEYS.lock, null);
-              toast('Uygulama kilidi kaldırıldı');
-            }}
-          >
-            Kilidi kaldır
-          </Button>
+          <div className="flex flex-wrap gap-2">
+            <Button variant="secondary" icon={<LockSimple size={16} />} onClick={lockNow}>
+              Şimdi kilitle
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={async () => {
+                await setSetting(SETTINGS_KEYS.lock, null);
+                toast('Uygulama kilidi kaldırıldı');
+              }}
+            >
+              Kilidi kaldır
+            </Button>
+          </div>
         </div>
       ) : (
-        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-end">
-          <Field label="Yeni PIN (4–6 rakam)">{(p) => <TextInput {...p} type="password" inputMode="numeric" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} />}</Field>
-          <Field label="PIN tekrar">{(p) => <TextInput {...p} type="password" inputMode="numeric" value={pin2} onChange={(e) => setPin2(e.target.value.replace(/\D/g, '').slice(0, 6))} />}</Field>
+        <div className="grid gap-3 sm:grid-cols-[1fr_1fr_auto] sm:items-start">
+          <Field label="Yeni PIN (4–6 rakam)">{(p) => <TextInput {...p} type="password" inputMode="numeric" autoComplete="new-password" value={pin} onChange={(e) => setPin(e.target.value.replace(/\D/g, '').slice(0, 6))} />}</Field>
+          <Field label="PIN tekrar" error={pin2.length >= 4 && pin !== pin2 ? 'PIN’ler eşleşmiyor' : undefined}>
+            {(p) => <TextInput {...p} type="password" inputMode="numeric" autoComplete="new-password" value={pin2} onChange={(e) => setPin2(e.target.value.replace(/\D/g, '').slice(0, 6))} />}
+          </Field>
           <Button
             variant="primary"
             disabled={pin.length < 4 || pin !== pin2}
             onClick={async () => {
               const salt = newSalt();
-              await setSetting(SETTINGS_KEYS.lock, { salt, pinHash: await hashPin(pin, salt) });
+              const pinHash = await hashPin(pin, salt);
+              // Önce bu oturumu "açık" işaretle, sonra kilidi kaydet: kuran kişi hemen kilitlenmesin
               try {
                 sessionStorage.setItem('mizan:unlocked', '1');
               } catch {
                 /* yok say */
               }
+              await setSetting(SETTINGS_KEYS.lock, { salt, pinHash, length: pin.length });
               setPin('');
               setPin2('');
-              toast.success('PIN kilidi açıldı');
+              toast.success('PIN kilidi etkinleştirildi', { description: '15 dakika hareketsizlikte ya da “Şimdi kilitle” ile kilitlenir.' });
             }}
+            className="sm:mt-[1.375rem]"
           >
-            Kilidi aç
+            Kilidi etkinleştir
           </Button>
         </div>
       )}
@@ -697,6 +719,7 @@ function DataSection() {
   const f = useFinance();
   const fileRef = useRef<HTMLInputElement>(null);
   const [confirm, setConfirm] = useState<null | 'wipe' | 'demo'>(null);
+  const [pending, setPending] = useState<Backup | null>(null);
   const days = f.settings.lastBackupAt ? diffDays(f.today, toISODate(new Date(f.settings.lastBackupAt))) : null;
   return (
     <Section
@@ -747,10 +770,10 @@ function DataSection() {
                   try {
                     const data = JSON.parse(await file.text());
                     if (!validateBackup(data)) throw new Error('Bu bir Mizan yedeği değil');
-                    await restoreBackup(data);
-                    toast.success('Yedek geri yüklendi', { description: `${new Date(data.exportedAt).toLocaleString('tr-TR')} tarihli` });
+                    // Yanlış dosya seçilirse mevcut veri gitmesin: önce ne yükleneceğini göster.
+                    setPending(data);
                   } catch (err) {
-                    toast.error('Geri yükleme başarısız', { description: err instanceof Error ? err.message : '' });
+                    toast.error('Dosya okunamadı', { description: err instanceof SyntaxError ? 'Geçerli bir JSON dosyası değil' : err instanceof Error ? err.message : '' });
                   } finally {
                     e.target.value = '';
                   }
@@ -811,7 +834,57 @@ function DataSection() {
       >
         <span />
       </Modal>
+      <Modal
+        open={pending !== null}
+        onOpenChange={(o) => !o && setPending(null)}
+        title="Yedek geri yüklensin mi?"
+        description="Bu cihazdaki aynı işletmenin mevcut verisi, yedektekiyle değiştirilir."
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setPending(null)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant="primary"
+              onClick={async () => {
+                if (!pending) return;
+                try {
+                  await restoreBackup(pending);
+                  toast.success('Yedek geri yüklendi', { description: `${new Date(pending.exportedAt).toLocaleString('tr-TR')} tarihli` });
+                } catch (err) {
+                  toast.error('Geri yükleme başarısız', { description: err instanceof Error ? err.message : '' });
+                }
+                setPending(null);
+              }}
+            >
+              Geri yükle
+            </Button>
+          </>
+        }
+      >
+        {pending && <BackupSummary backup={pending} />}
+      </Modal>
     </Section>
+  );
+}
+
+function BackupSummary({ backup }: { backup: Backup }) {
+  const count = (t: string) => backup.tables[t]?.length ?? 0;
+  const ws = backup.workspace as { name?: string };
+  const rows: Array<[string, string]> = [
+    ['İşletme', ws.name ?? '—'],
+    ['Yedek tarihi', new Date(backup.exportedAt).toLocaleString('tr-TR', { dateStyle: 'long', timeStyle: 'short' })],
+    ['İçerik', `${count('transactions')} işlem · ${count('contacts')} cari · ${count('documents')} fatura · ${count('accounts')} hesap`],
+  ];
+  return (
+    <dl className="grid gap-2 rounded-[12px] border border-line p-3 text-sm">
+      {rows.map(([k, v]) => (
+        <div key={k} className="grid grid-cols-[96px_1fr] gap-2">
+          <dt className="text-muted">{k}</dt>
+          <dd className="min-w-0 font-medium break-words">{v}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
 

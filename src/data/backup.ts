@@ -39,6 +39,9 @@ export function validateBackup(data: unknown): data is Backup {
   return Boolean(b && b.app === 'mizan' && typeof b.version === 'number' && b.version <= BACKUP_VERSION && b.workspace && b.tables);
 }
 
+/** Cihaza ait ayarlar: yedekteki eski değerler bunların üzerine yazılmaz. */
+const DEVICE_KEYS = new Set<string>([SETTINGS_KEYS.ai, SETTINGS_KEYS.lock, SETTINGS_KEYS.lastBackup, SETTINGS_KEYS.cloud]);
+
 /** Yedeği geri yükler: aynı çalışma alanının mevcut verisini değiştirir. */
 export async function restoreBackup(b: Backup): Promise<ID> {
   const ws = (b.workspace as { id: ID }).id;
@@ -51,9 +54,11 @@ export async function restoreBackup(b: Backup): Promise<ID> {
     await db.workspaces.put(b.workspace as never);
     if (b.rates?.length) await db.rates.bulkPut(b.rates as never[]);
     for (const s of b.settings ?? []) {
-      if (s.key === SETTINGS_KEYS.ai || s.key === SETTINGS_KEYS.lock) continue;
+      if (DEVICE_KEYS.has(s.key)) continue;
       await db.settings.put(s);
     }
+    // Demo içindeyken gerçek işletme yedeği yüklenirse demo bayrağı kalkmalı (ya da tersi).
+    if (!(b.settings ?? []).some((s) => s.key === SETTINGS_KEYS.demo)) await db.settings.delete(SETTINGS_KEYS.demo);
     await db.settings.put({ key: SETTINGS_KEYS.activeWorkspace, value: ws });
   });
   return ws;

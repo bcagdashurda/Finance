@@ -416,9 +416,13 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
         <Button variant="ghost" onClick={() => setReview(null)}>
           Geri
         </Button>
-        <Button variant="primary" magnetic loading={busy} onClick={runImport} disabled={!included.length}>
-          {included.length} işlemi aktar
-        </Button>
+        {included.length === 0 && dupCount > 0 ? (
+          <span className="text-sm text-muted">Bu ekstredeki hareketlerin hepsi zaten kayıtlı; aktarılacak yeni hareket yok.</span>
+        ) : (
+          <Button variant="primary" magnetic loading={busy} onClick={runImport} disabled={!included.length}>
+            {included.length} işlemi aktar
+          </Button>
+        )}
       </div>
     </div>
   );

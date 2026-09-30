@@ -109,10 +109,14 @@ export async function deleteWorkspace(id: ID) {
 export const createAccount = (input: Scoped<Account>) => insert(db.accounts, input);
 export const updateAccount = (id: ID, changes: Partial<Account>) => patch(db.accounts, id, changes);
 
+/** Hareketi, düzenli ödemesi ya da çeki olan hesap arşivlenir; hiçbir şeye bağlı değilse silinir. */
 export async function deleteOrArchiveAccount(id: ID): Promise<'deleted' | 'archived'> {
+  const ws = requireWorkspace();
   const used =
     (await db.transactions.where('accountId').equals(id).count()) +
-    (await db.transactions.where('toAccountId').equals(id).count());
+    (await db.transactions.where('toAccountId').equals(id).count()) +
+    (await db.recurring.where('workspaceId').equals(ws).filter((r) => r.accountId === id).count()) +
+    (await db.instruments.where('workspaceId').equals(ws).filter((i) => i.accountId === id).count());
   if (used > 0) {
     await patch(db.accounts, id, { archived: true });
     return 'archived';
@@ -134,15 +138,22 @@ export async function importContacts(inputs: Array<Scoped<Contact>>): Promise<nu
   return rows.length;
 }
 
+/** Hareketi, belgesi, çeki ya da düzenli ödemesi olan cari arşivlenir; hiçbir şeye bağlı değilse silinir. */
 export async function deleteOrArchiveContact(id: ID): Promise<'deleted' | 'archived'> {
+  const ws = requireWorkspace();
   const used =
     (await db.transactions.where('contactId').equals(id).count()) +
     (await db.documents.where('contactId').equals(id).count()) +
-    (await db.instruments.where('contactId').equals(id).count());
+    (await db.instruments.where('contactId').equals(id).count()) +
+    (await db.instruments.where('workspaceId').equals(ws).filter((i) => i.endorsedToId === id).count()) +
+    (await db.recurring.where('workspaceId').equals(ws).filter((r) => r.contactId === id).count());
   if (used > 0) {
     await patch(db.contacts, id, { archived: true });
     return 'archived';
   }
+  // Öğrenilmiş içe aktarma kuralları kalsın, yalnızca silinen cariyle bağı kopsun.
+  const rules = await db.rules.where('workspaceId').equals(ws).filter((r) => r.contactId === id).toArray();
+  for (const r of rules) await patch(db.rules, r.id, { contactId: undefined });
   await db.contacts.delete(id);
   return 'deleted';
 }

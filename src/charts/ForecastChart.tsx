@@ -255,9 +255,10 @@ export function ForecastChart({
                 />
                 {!compact && (
                   <text
-                    x={x(minPoint.date)}
-                    y={y(minPoint.expected) + 22}
-                    textAnchor="middle"
+                    // Kenarlara yakınsa etiket içeri, alt eksene yakınsa noktanın üstüne alınır (kırpılmasın)
+                    x={x(minPoint.date) + (x(minPoint.date) > w - 60 ? -10 : x(minPoint.date) < 60 ? 10 : 0)}
+                    y={y(minPoint.expected) + (y(minPoint.expected) > h - 26 ? -14 : 22)}
+                    textAnchor={x(minPoint.date) > w - 60 ? 'end' : x(minPoint.date) < 60 ? 'start' : 'middle'}
                     className={`text-[11px] font-medium ${belowMin ? 'fill-[var(--outflow-text)]' : 'fill-[var(--ink-muted)]'}`}
                   >
                     En düşük · {formatDayMonth(minPoint.date)}

@@ -2,7 +2,8 @@ import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
-import { ArrowLeft, ArrowsLeftRight, PencilSimple, Plus, Archive } from '@phosphor-icons/react';
+import { ArrowLeft, ArrowsLeftRight, ArrowCounterClockwise, PencilSimple, Plus, Archive } from '@phosphor-icons/react';
+import { Modal } from '@/ui/Overlay';
 import { useFinance } from '@/app/finance';
 import { useUI } from '@/app/ui-store';
 import { Panel, PanelHeader } from '@/ui/Panel';
@@ -29,7 +30,11 @@ export default function HesapDetayPage() {
   const [range, setRange] = useState<'90' | '180' | '365'>('180');
   const [edit, setEdit] = useState(false);
   const [limit, setLimit] = useState(60);
+  const [removeOpen, setRemoveOpen] = useState(false);
   const a = f.accountsById.get(id);
+  /** deleteOrArchiveAccount ile aynı ölçüt: bağlı kayıt varsa arşivlenir. */
+  const linked =
+    f.transactions.some((t) => t.accountId === id || t.toAccountId === id) || f.recurring.some((r) => r.accountId === id) || f.instruments.some((i) => i.accountId === id);
 
   const points = useMemo(() => (a ? balanceSeries([a], f.transactions, addDays(f.today, -Number(range)), f.today, { ...f.rates, [a.currency]: 1 }) : []), [a, f.transactions, f.today, f.rates, range]);
   const txs = useMemo(() => f.transactionsDesc.filter((t) => t.accountId === id || t.toAccountId === id), [f.transactionsDesc, id]);
@@ -96,20 +101,46 @@ export default function HesapDetayPage() {
             label={a.archived ? 'Arşivden çıkar' : 'Arşivle ya da sil'}
             variant="secondary"
             onClick={async () => {
-              if (a.archived) {
-                await updateAccount(a.id, { archived: false });
-                toast.success('Hesap yeniden etkin');
-                return;
-              }
-              const r = await deleteOrArchiveAccount(a.id);
-              toast(r === 'deleted' ? 'Hesap silindi' : 'Hareketi olduğu için hesap arşivlendi');
-              if (r === 'deleted') navigate('/hesaplar', { viewTransition: true });
+              if (!a.archived) return setRemoveOpen(true);
+              await updateAccount(a.id, { archived: false });
+              toast.success('Hesap yeniden etkin');
             }}
           >
-            <Archive size={16} />
+            {a.archived ? <ArrowCounterClockwise size={16} /> : <Archive size={16} />}
           </IconButton>
         </div>
       </header>
+
+      <Modal
+        open={removeOpen}
+        onOpenChange={setRemoveOpen}
+        title={linked ? 'Hesap arşivlensin mi?' : 'Hesap silinsin mi?'}
+        description={
+          linked
+            ? 'Bu hesabın hareketleri olduğu için silinmez, arşivlenir: toplam bakiyeye ve projeksiyona katılmaz, seçimlerde görünmez; geçmiş kayıtlar korunur.'
+            : 'Bu hesaba bağlı hiçbir kayıt yok; kalıcı olarak silinir.'
+        }
+        footer={
+          <>
+            <Button variant="ghost" onClick={() => setRemoveOpen(false)}>
+              Vazgeç
+            </Button>
+            <Button
+              variant={linked ? 'primary' : 'danger'}
+              onClick={async () => {
+                const r = await deleteOrArchiveAccount(a.id);
+                setRemoveOpen(false);
+                toast.success(r === 'deleted' ? 'Hesap silindi' : 'Hesap arşivlendi');
+                if (r === 'deleted') navigate('/hesaplar', { viewTransition: true });
+              }}
+            >
+              {linked ? 'Arşivle' : 'Evet, sil'}
+            </Button>
+          </>
+        }
+      >
+        <span />
+      </Modal>
 
       <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
         <Panel reveal={0}>
