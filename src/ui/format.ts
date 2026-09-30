@@ -47,6 +47,8 @@ export function relativeDay(iso: ISODate, today: ISODate): string {
   if (d < -1 && d > -7) return `${-d} gün önce`;
   if (d >= 7 && d < 60) return `${Math.round(d / 7)} hafta sonra`;
   if (d <= -7 && d > -60) return `${Math.round(-d / 7)} hafta önce`;
+  if (d >= 60 && d < 365) return `${Math.round(d / 30)} ay sonra`;
+  if (d <= -60 && d > -365) return `${Math.round(-d / 30)} ay önce`;
   return formatDate(iso);
 }
 

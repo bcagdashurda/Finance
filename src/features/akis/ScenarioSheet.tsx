@@ -30,18 +30,36 @@ const TYPES: Array<{ type: AdjType; label: string; icon: React.ReactNode; help: 
 
 const COLORS = ['c7', 'c5', 'c6', 'c2', 'c4'];
 
-export function ScenarioSheet({ open, onOpenChange, scenario, horizon }: { open: boolean; onOpenChange: (o: boolean) => void; scenario: Scenario | null; horizon: number }) {
+/** Hazır taslak: ör. nakit uyarısından "çözüm senaryosu kur" ile gelen öneri */
+export interface ScenarioDraft {
+  name: string;
+  adjustments: Adjustment[];
+}
+
+export function ScenarioSheet({
+  open,
+  onOpenChange,
+  scenario,
+  horizon,
+  draft,
+}: {
+  open: boolean;
+  onOpenChange: (o: boolean) => void;
+  scenario: Scenario | null;
+  horizon: number;
+  draft?: ScenarioDraft | null;
+}) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange} title={scenario ? 'Senaryoyu düzenle' : 'Yeni senaryo'} description="“Ya şöyle olursa?” sorusunu projeksiyon üzerinde deneyin." width={600}>
-      {open && <ScenarioEditor key={scenario?.id ?? 'new'} scenario={scenario} horizon={horizon} onDone={() => onOpenChange(false)} />}
+      {open && <ScenarioEditor key={scenario?.id ?? (draft ? `draft-${draft.name}` : 'new')} scenario={scenario} draft={draft ?? null} horizon={horizon} onDone={() => onOpenChange(false)} />}
     </Sheet>
   );
 }
 
-function ScenarioEditor({ scenario, horizon, onDone }: { scenario: Scenario | null; horizon: number; onDone: () => void }) {
+function ScenarioEditor({ scenario, draft, horizon, onDone }: { scenario: Scenario | null; draft: ScenarioDraft | null; horizon: number; onDone: () => void }) {
   const f = useFinance();
-  const [name, setName] = useState(scenario?.name ?? '');
-  const [adjustments, setAdjustments] = useState<Adjustment[]>(scenario?.adjustments ?? []);
+  const [name, setName] = useState(scenario?.name ?? draft?.name ?? '');
+  const [adjustments, setAdjustments] = useState<Adjustment[]>(scenario?.adjustments ?? draft?.adjustments ?? []);
   const [adding, setAdding] = useState<AdjType | null>(adjustments.length ? null : 'delay');
   const [saving, setSaving] = useState(false);
 
@@ -49,6 +67,10 @@ function ScenarioEditor({ scenario, horizon, onDone }: { scenario: Scenario | nu
   const preview = useMemo(() => buildForecast(forecastInput(f, horizon, { adjustments })), [f, horizon, adjustments]);
   const minDelta = preview.min.value - base.min.value;
   const endDelta = preview.end.expected - base.end.expected;
+  // Çözüm senaryosunun asıl ölçütü: nakdin eşiğin altında kaldığı gün sayısı
+  const below = (r: typeof base) => r.days.filter((d) => d.expected < f.settings.minCashBalance).length;
+  const belowBase = below(base);
+  const belowPreview = below(preview);
 
   async function save() {
     if (!name.trim()) {
@@ -79,6 +101,20 @@ function ScenarioEditor({ scenario, horizon, onDone }: { scenario: Scenario | nu
       <div className="grid grid-cols-2 gap-3">
         <Impact label="En düşük nakit" value={preview.min.value} delta={minDelta} sub={formatDayMonth(preview.min.date)} />
         <Impact label={`${horizon} gün sonra`} value={preview.end.expected} delta={endDelta} />
+        {(belowBase > 0 || belowPreview > 0) && (
+          <div className="col-span-2 flex items-center justify-between gap-3 rounded-[16px] bg-sunken px-4 py-3">
+            <div>
+              <div className="text-2xs text-muted">Minimum eşiğin ({formatShort(f.settings.minCashBalance)}) altında kalınan gün</div>
+              <div className="display mt-0.5 text-2xl">
+                {belowPreview} <span className="text-sm text-muted">gün</span>
+              </div>
+            </div>
+            <div className={cn('text-right text-xs font-medium', belowPreview < belowBase ? 'text-inflow-text' : belowPreview > belowBase ? 'text-outflow-text' : 'text-muted')}>
+              {belowPreview === belowBase ? 'Bazla aynı' : belowPreview < belowBase ? `${belowBase - belowPreview} gün azalır` : `${belowPreview - belowBase} gün artar`}
+              <div className="text-2xs font-normal text-muted">bazda {belowBase} gün</div>
+            </div>
+          </div>
+        )}
       </div>
 
       <div>

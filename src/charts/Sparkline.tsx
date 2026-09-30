@@ -26,7 +26,7 @@ export function Sparkline({ values, width = 120, height = 32, color = 'var(--cob
   }, [values, width, height]);
   if (values.length < 2) return <svg width={width} height={height} aria-hidden />;
   return (
-    <svg width={width} height={height} aria-hidden className="overflow-visible">
+    <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} aria-hidden className="overflow-visible">
       <defs>
         <linearGradient id={`${uid}-g`} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor={color} stopOpacity={0.18} />

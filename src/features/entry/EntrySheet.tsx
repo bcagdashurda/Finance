@@ -310,8 +310,8 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
           direction: s.kind as 'receivable' | 'payable',
           contactId: s.contactId,
           categoryId: s.categoryId,
-          // Başlık boşsa anlamlı bir varsayılan: "Satış faturası DNZ2026…" ya da "Alış faturası"
-          title: s.description.trim() || `${s.kind === 'receivable' ? 'Satış faturası' : 'Alış faturası'}${s.number.trim() ? ` ${s.number.trim()}` : ''}`,
+          // Başlık boşsa anlamlı varsayılan; belge no etiketlerde ayrıca gösterildiği için başlığa eklenmez
+          title: s.description.trim() || (s.kind === 'receivable' ? 'Satış faturası' : 'Alış faturası'),
           number: s.number.trim() || undefined,
           issueDate: s.date,
           dueDate: s.dueDate,

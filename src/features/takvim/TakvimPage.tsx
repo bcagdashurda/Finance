@@ -15,7 +15,7 @@ import { cn } from '@/ui/cn';
 import { formatDateShort, formatDayMonth, formatDayMonthLong, formatMonthYear, formatWeekday } from '@/ui/format';
 import { addDays, addMonths, diffDays, endOfMonth, isHoliday, isWeekend, monthKey, startOfWeek, type ISODate } from '@/domain/dates';
 import { buildForecast, type ForecastItem } from '@/domain/forecast';
-import { occurrences } from '@/domain/recurrence';
+import { occurrences, unpostedOccurrences } from '@/domain/recurrence';
 import { amountInBase } from '@/domain/balances';
 import { formatShort } from '@/domain/money';
 import type { RecurringRule } from '@/domain/types';
@@ -79,9 +79,7 @@ export default function TakvimPage() {
     .map((d) => ({ d, st: f.docStates.get(d.id)! }))
     .filter((x) => x.st.status === 'overdue')
     .sort((a, b) => a.d.dueDate.localeCompare(b.d.dueDate));
-  const unposted = f.recurring
-    .filter((r) => r.active && !r.autoPost)
-    .flatMap((r) => occurrences(r, addDays(f.today, -45), addDays(f.today, -1)).filter((o) => !f.postedOccurrences.has(`${r.id}:${o.nominal}`)).map((o) => ({ r, o })));
+  const unposted = unpostedOccurrences(f.recurring, f.postedOccurrences, f.today, 45).map((x) => ({ r: x.rule, o: x.occurrence }));
 
   const selectedItems = selected >= f.today ? (itemsByDay.get(selected) ?? []) : [];
   const selectedTxs = selected < f.today ? f.transactions.filter((t) => t.date === selected && t.kind !== 'transfer') : [];
@@ -341,7 +339,8 @@ export default function TakvimPage() {
         />
         <ul className="divide-y divide-line">
           {f.recurring.map((r) => {
-            const next = occurrences(r, f.today, addDays(f.today, 400))[0];
+            // Ödendi olarak işaretlenmiş oluşum "sonraki" sayılmaz
+            const next = occurrences(r, f.today, addDays(f.today, 400)).find((o) => !f.postedOccurrences.has(`${r.id}:${o.nominal}`));
             return (
               <li key={r.id} className="flex flex-wrap items-center gap-3 py-3">
                 <Repeat size={18} className={r.direction === 'in' ? 'text-inflow-text' : 'text-outflow-text'} />

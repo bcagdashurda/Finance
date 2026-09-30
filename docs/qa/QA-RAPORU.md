@@ -70,3 +70,71 @@ Bulunan ve düzeltilen:
 - Escape ile katman katman kapanma (önce açılır liste, sonra pencere) şüphesi uçtan uca testle doğrulandı; masaüstü ve mobilde doğru çalışıyor.
 
 Ölçüm (geliştirme sunucusu): kayıt penceresi 1,3 sn'de hazır; üretimde ayrıca ölçülecek.
+
+## S5 · Fatura, vade ve döviz — 🔧
+
+Oynanan: Kuzey Mobilya'ya 240 bin TL (%20 KDV, 30 gün vade) satış faturası; Ege Kağıt'tan 5.000 USD alış faturası.
+Doğrulanan: USD fatura projeksiyonda 5.000 × 49 = −₺245.000 ile 30 Ekim'de; satış 30 Ekim'de +₺240.000. KDV özeti: hesaplanan ₺40.000, indirilecek ₺40.833 (USD faturanın KDV'si), sonraki aya devir ₺833 — elle hesapla aynı. Bu yüzden projeksiyonda KDV ödemesi olmaması doğru (ilk yorumumda bunu yanlışlıkla hata sanmıştım; veritabanından doğrulandı). Son gün hesabı bayram tatillerini de atlıyor (Nisan dönemi 28 Mayıs Kurban Bayramı → 1 Haziran).
+
+Düzeltilen:
+- Varsayılan fatura başlığı belge numarasını iki kez gösteriyordu ("Satış faturası ATL… · ATL…").
+- KDV özeti yeni işletmede 11 ay boş satır gösteriyordu; artık ilk KDV hareketinden başlıyor, hiç yoksa açıklama gösteriyor.
+
+## S6 · Çek ve senet — 🔧
+
+Oynanan: Yıldız'dan 60 bin çek (portföy), Kuzey'den 100 bin çek (faturaya dağıtıldı), Özkan'a 18.900 verilen çek; Yıldız çeki Demir'e ciro; Kuzey çeki tahsile verildi → karşılıksız çıktı.
+Doğrulanan bakiyeler (önceden elle hesaplandı): Yıldız ₺140.800 · Demir −₺39.900 · Kuzey ₺752.301 (karşılıksız çek bakiyeye geri eklendi) · Özkan ₺0 · Ege −₺287.750. Portföy ortalama vadesi 53 gün (tutar ağırlıklı) doğru.
+
+Bulunan ve düzeltilen:
+- **Mobilde çek işlemleri yapılamıyordu (kritik):** Tahsile ver / ciro / karşılıksız menüsü, vade ve durum 640 px altında gizliydi. Artık görünür; 375 px'te taşma yok.
+- Eksik alan uyarısı yalnızca toast'tı; artık alan altında, ilk hatalı alana odakla.
+- Verilen çekin düşeceği hesap banka adından tahmin ediliyordu; artık "Ödeneceği hesap" seçiliyor.
+- Döviz (USD/EUR/GBP) çek/senet girilebiliyor; toplamlar ve ortalama vade TL karşılığıyla.
+- Banka alanı stilsiz datalist'ti → aranabilir seçici. Bildirimde ham tarih ("2026-11-29") → "29 Kasım 2026".
+- Ciro penceresi devir borcu olan tedarikçi için "avans olarak işlenir" diyordu → "cari bakiyesinden (devir) düşülür".
+- Uzak tarihler "vade 29.11.2026 · 29 Kasım 2026" diye tekrar ediyordu → "2 ay sonra".
+- Küçük düğmeler dokunmatikte 32 px'ti; görünüm değişmeden dokunma alanı 44 px'e genişletildi.
+
+## S7 · Düzenli ödemeler — 🔧
+
+Oynanan: Kira (95 bin, 5'i), maaş (180 bin, ay sonu), SGK/muhtasar (42 bin, 26'sı) şablonlardan; bugünkü maaş Takvim'den "Öde" ile işaretlendi.
+Doğrulanan: Kira 5 Ekim, SGK 26 Ekim, maaş 30 Eylül (bugün); ödeme sonrası toplam nakit ₺2.115.150 → ₺1.935.150 (tam 180 bin).
+
+Bulunan ve düzeltilen:
+- **Sahte "Bekleyenler":** Bugün eklenen bir kuralın geçmiş ayları "işaretlenmedi" diye listelenecekti (5 Eylül kirası gibi). Artık kuralın eklendiği günden öncesi sayılmıyor (birim testli).
+- **Maaş ay sonu kayması:** Şablon çapası 30 Eylül olduğundan Ekim maaşı 31 yerine 30'a düşecekti. Çapa 31 çeken aya alındı; Ekim'de 31 cumartesi olduğu için doğru biçimde 30 Ekim cuma.
+- Ödenen oluşum hâlâ "sonraki 30 Eylül" görünüyordu → "sonraki 30 Ekim".
+- Doğrulama toast'tan alan altına; şablon açıklamaları 10,5 px'ten okunur boyuta.
+
+## S8 · Nakit sıkışması analizi (demo) — 🔧
+
+Doğrulanan: 13 haftalık projeksiyon, en düşük nokta, eşik uyarısı ve tetikleyiciler; eşik 3 milyona düşürülünce baz uyarı kalkıp kötümser senaryo uyarısına dönüşüyor (doğru).
+
+Bulunan ve düzeltilen:
+- **"Çözüm senaryosu kur" boş açılıyordu.** Artık sıkışmayı tetikleyen en büyük ertelenebilir ödemeyi 14 gün kaydıran hazır bir taslak açıyor.
+- **Etkisi görünmüyordu:** Taslak "en düşük nokta değişmez" diyordu (genel dip 2 Aralık'ta, sıkışma 26 Ekim'de). Senaryo ekranına ve kartlarına "eşiğin altında kalınan gün" ölçütü eklendi: "15 gün (bazda 20) · 5 gün azalır".
+- Senaryo kartı "En düşük nokta −₺96,2 bin" diyordu (eksi bakiye sanılıyordu) → "En düşük nokta ₺96,2 bin düşer · ₺4,1 milyon, 27 Eki".
+
+## S9 · Gecikmiş alacak takibi (demo) — 🔧
+
+Oynanan: Kokpit → gecikmiş alacak → cari detayı → hatırlatma metni → 200 bin kısmi tahsilat.
+Doğrulanan: Tahsilat en eski vadesi geçmiş faturaya dağıtıldı (kalan ₺287.200); "Bize borcu" ₺1.638.013 → ₺1.438.013; hatırlatma metni fatura no, vade, tutar ve IBAN ile hazır; WhatsApp/e-posta ile gönderilebiliyor.
+
+Düzeltilen: Ekstrede ileri tarihli satır (teyit bekleyen sipariş) bakiye sütununu şişiriyordu ve başlıktaki "Bize borcu" ile çelişiyordu → "Planlı" rozetiyle soluk gösteriliyor.
+
+## S10 · Raporlar ve PDF — 🔧 (kullanıcının bildirdiği hata)
+
+**Önce (gerçek Chrome PDF'i):** 12 aylık gelir-gider tablosunun yalnızca Ekim–Nisan sütunları basılıyor, kalan aylar ve Toplam kağıttan taşıp kayboluyordu; sonda boş sayfa; ekrandaki düğmeler kağıtta; gri zemin ve doku efekti yüzünden rapor 3,7 MB; "Ayın hikâyesi" 12 sayfa / 19 MB, sayaçlar ₺0, dev boşluklar.
+
+**Sonra:**
+
+| Çıktı | Önce | Sonra |
+|---|---|---|
+| Gelir-gider tablosu | yarım sütunlar, 3,7 MB | yatay A4, 12 ay + Toplam, 2 sayfa, 233 KB |
+| Nakit akış tablosu | yarım, 3 sayfa | 2 sayfa, 240 KB |
+| Kategori analizi | 1. sayfa yalnızca başlık | 1 sayfa |
+| Yaşlandırma / KDV | — | 1'er sayfa |
+| Ayın hikâyesi | 12 sayfa, 19 MB, ₺0 | 1 sayfalık statik "aylık özet", 161 KB |
+
+Eklenen: belge başlığı (işletme, rapor adı, esas, dönem, hazırlanma tarihi), "Sayfa X / Y" altbilgisi, koyu temada bile açık renk baskı, tablo başlığının her sayfada tekrarı, satırların bölünmemesi.
+Kalıcı test: `e2e/yazdirma.spec.ts` gerçek PDF üretip sayfa sayısı, boyut, taşma ve sayfa yönünü denetler. Yatay sayfa kuralı bilerek kapatıldığında test kırmızıya düştü (kanıt). İlk yazdığım sürüm bu hatayı yakalayamıyordu; mutasyon denemesiyle fark edilip güçlendirildi.

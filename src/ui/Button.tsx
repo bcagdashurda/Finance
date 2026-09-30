@@ -15,7 +15,8 @@ const VARIANTS: Record<Variant, string> = {
 };
 
 const SIZES: Record<Size, string> = {
-  sm: 'h-8 px-3 text-xs gap-1.5 rounded-[10px]',
+  // Dokunmatikte görünmez genişletilmiş dokunma alanı: 32 px düğme, 44 px hedef
+  sm: "h-8 px-3 text-xs gap-1.5 rounded-[10px] pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']",
   md: 'h-10 px-4 text-sm gap-2 rounded-[var(--radius-control)]',
   lg: 'h-12 px-5 text-[0.95rem] gap-2.5 rounded-[14px]',
 };

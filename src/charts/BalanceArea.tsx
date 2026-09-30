@@ -41,6 +41,7 @@ export function BalanceArea({ points, currency = 'TRY', height = 240, color = 'v
         <svg
           width={width}
           height={height}
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={label}
           onPointerMove={(e) => {

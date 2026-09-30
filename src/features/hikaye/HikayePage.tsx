@@ -44,12 +44,140 @@ export default function HikayePage() {
   const [month, setMonth] = useState(Number(f.today.slice(8, 10)) < 8 ? months[1]! : months[0]!);
   const data = useMemo(() => buildStory(f, month), [f, month]);
   return (
-    <div className="-mx-4 sm:-mx-6 lg:-mx-10">
+    <div className="-mx-4 sm:-mx-6 lg:-mx-10 print:mx-0">
       <div className="no-print sticky top-16 z-20 flex justify-center px-4 pb-2 pt-3">
         <Segmented label="Ay" size="sm" value={month} onChange={setMonth} options={[...months].reverse().map((m) => ({ value: m, label: formatMonthShort(m) }))} className="shadow-[var(--float-shadow)]" />
       </div>
-      <Story key={month} data={data} />
+      {/* Kaydırmalı anlatı kâğıda basılamaz (yapışkan bölümler, sayaç animasyonları): yazdırmada statik özet */}
+      <div className="no-print">
+        <Story key={month} data={data} />
+      </div>
+      <StoryPrint data={data} />
     </div>
+  );
+}
+
+/** Yazdırma / PDF için tek sayfalık aylık özet: hikâyenin aynı rakamları, animasyonsuz. */
+function StoryPrint({ data }: { data: StoryData }) {
+  const f = useFinance();
+  const change = data.prevNet ? (data.net - data.prevNet) / Math.abs(data.prevNet) : 0;
+  const maxCat = Math.max(1, ...data.topCategories.map((c) => c.amount));
+  const maxCust = Math.max(1, ...data.topCustomers.map((c) => c.amount));
+  const verdict = data.alert ? 'Tahsilatları hızlandırın; sıkışma yaklaşıyor.' : data.net >= 0 ? 'Sağlıklı bir ay. Fazlayı değerlendirmeyi düşünün.' : 'Giderleri gözden geçirme zamanı.';
+  return (
+    <article className="print-only px-2 text-ink">
+      <header className="flex items-end justify-between gap-6 border-b border-line-strong pb-3">
+        <div>
+          <div className="text-[9pt] text-muted">{f.workspace.legalName ?? f.workspace.name}</div>
+          <h1 className="display text-[20pt] font-semibold leading-tight">
+            {formatMonth(data.month).replace(/^./, (c) => c.toLocaleUpperCase('tr-TR'))} {data.month.slice(0, 4)} · aylık özet
+          </h1>
+        </div>
+        <div className="text-right text-[8.5pt] text-muted">Hazırlanma: {formatDayMonthLong(f.today)}</div>
+      </header>
+
+      <section className="mt-5 grid grid-cols-3 gap-3">
+        {[
+          { label: 'Kasaya giren', value: formatShort(data.inflow), cls: 'text-inflow-text', sub: `${data.txCount} hareket` },
+          { label: 'Kasadan çıkan', value: formatShort(data.outflow), cls: 'text-outflow-text', sub: data.topCategories[0] ? `en büyük: ${data.topCategories[0].name}` : '' },
+          {
+            label: 'Net sonuç',
+            value: `${data.net >= 0 ? '+' : '−'}${formatShort(Math.abs(data.net))}`,
+            cls: data.net >= 0 ? 'text-inflow-text' : 'text-outflow-text',
+            sub: data.prevNet ? `geçen aya göre ${percent(Math.abs(change))} ${change >= 0 ? 'daha iyi' : 'daha zayıf'}` : '',
+          },
+        ].map((k) => (
+          <div key={k.label} className="rounded-[10px] border border-line p-3">
+            <div className="text-[8.5pt] text-muted">{k.label}</div>
+            <div className={`display mt-0.5 text-[17pt] font-semibold ${k.cls}`}>{k.value}</div>
+            <div className="text-[8pt] text-muted">{k.sub}</div>
+          </div>
+        ))}
+      </section>
+
+      <section className="mt-5 grid grid-cols-2 gap-6">
+        <div>
+          <h2 className="mb-2 text-[10pt] font-semibold">En çok tahsilat yapılan müşteriler</h2>
+          {data.topCustomers.length ? (
+            <ul className="space-y-1.5 text-[9pt]">
+              {data.topCustomers.map((c, i) => (
+                <li key={c.id}>
+                  <div className="flex justify-between gap-3">
+                    <span>
+                      {i + 1}. {c.name}
+                    </span>
+                    <span className="num">{formatShort(c.amount)}</span>
+                  </div>
+                  <div className="mt-0.5 h-1.5 rounded-full bg-sunken">
+                    <div className="h-full rounded-full bg-inflow" style={{ width: `${(c.amount / maxCust) * 100}%` }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[9pt] text-muted">Bu ay cariden tahsilat yok.</p>
+          )}
+        </div>
+        <div>
+          <h2 className="mb-2 text-[10pt] font-semibold">En büyük gider kalemleri</h2>
+          {data.topCategories.length ? (
+            <ul className="space-y-1.5 text-[9pt]">
+              {data.topCategories.map((c) => (
+                <li key={String(c.id)}>
+                  <div className="flex justify-between gap-3">
+                    <span>{c.name}</span>
+                    <span className="num">
+                      {formatShort(c.amount)} · {percent(data.outflow ? c.amount / data.outflow : 0)}
+                    </span>
+                  </div>
+                  <div className="mt-0.5 h-1.5 rounded-full bg-sunken">
+                    <div className="h-full rounded-full" style={{ width: `${(c.amount / maxCat) * 100}%`, background: slotColor(c.color) }} />
+                  </div>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-[9pt] text-muted">Bu ay gider kaydı yok.</p>
+          )}
+        </div>
+      </section>
+
+      {(data.bestPayer || data.latePayer) && (
+        <section className="mt-5 grid grid-cols-2 gap-6 text-[9pt]">
+          {data.bestPayer && (
+            <div className="rounded-[10px] border border-line p-3">
+              <div className="text-[8.5pt] text-inflow-text">En güvenilir ödeyen</div>
+              <div className="mt-0.5 font-semibold">{data.bestPayer.name}</div>
+              <div className="text-muted">
+                Ortalama {data.bestPayer.delay <= 0 ? 'vadesinde' : `${data.bestPayer.delay} gün geç`} öder; faturalarının {percent(data.bestPayer.onTime)} kadarı zamanında.
+              </div>
+            </div>
+          )}
+          {data.latePayer && (
+            <div className="rounded-[10px] border border-line p-3">
+              <div className="text-[8.5pt] text-outflow-text">Takip edilmesi gereken</div>
+              <div className="mt-0.5 font-semibold">{data.latePayer.name}</div>
+              <div className="text-muted">Ortalama {data.latePayer.delay} gün geç öder.</div>
+            </div>
+          )}
+        </section>
+      )}
+
+      <section className="mt-5 break-inside-avoid">
+        <h2 className="text-[10pt] font-semibold">Önümüzdeki 30 gün</h2>
+        <p className="mt-1 text-[9pt] text-ink-2">
+          {data.alert
+            ? `${formatDayMonthLong(data.alert.date)} günü nakit ${formatShort(data.alert.value)} seviyesine iniyor; belirlediğiniz eşiğin altında.`
+            : `En düşük nokta ${formatDayMonthLong(data.forecastMin.date)}: ${formatShort(data.forecastMin.value)}. Eşiğin üzerinde kalıyorsunuz.`}
+        </p>
+        <StoryCurve points={data.forecastDays} idPrefix="print" className="mt-2 h-40 w-full" />
+      </section>
+
+      <section className="mt-4 rounded-[10px] border border-line-strong p-3">
+        <div className="text-[8.5pt] text-muted">Ayın kararı</div>
+        <div className="display mt-0.5 text-[13pt] font-semibold">{verdict}</div>
+      </section>
+    </article>
   );
 }
 
@@ -299,7 +427,7 @@ function CoverArt() {
   );
 }
 
-function StoryCurve({ points }: { points: Array<{ date: string; value: number }> }) {
+function StoryCurve({ points, idPrefix = 'story', className = 'mt-10 h-56 w-full' }: { points: Array<{ date: string; value: number }>; idPrefix?: string; className?: string }) {
   const w = 1000;
   const h = 260;
   const lo = Math.min(...points.map((p) => p.value));
@@ -309,15 +437,15 @@ function StoryCurve({ points }: { points: Array<{ date: string; value: number }>
   const d = points.map((p, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)} ${y(p.value).toFixed(1)}`).join('');
   const minIdx = points.findIndex((p) => p.value === lo);
   return (
-    <svg viewBox={`0 0 ${w} ${h}`} className="mt-10 h-56 w-full" aria-label="Önümüzdeki 30 günün nakit eğrisi">
+    <svg viewBox={`0 0 ${w} ${h}`} className={className} preserveAspectRatio="none" aria-label="Önümüzdeki 30 günün nakit eğrisi">
       <defs>
-        <linearGradient id="story-grad" x1="0" x2="0" y1="0" y2="1">
+        <linearGradient id={`${idPrefix}-grad`} x1="0" x2="0" y1="0" y2="1">
           <stop offset="0%" stopColor="var(--cobalt)" stopOpacity={0.25} />
           <stop offset="100%" stopColor="var(--cobalt)" stopOpacity={0} />
         </linearGradient>
       </defs>
-      <path id="story-area" d={`${d}L${w} ${h}L0 ${h}Z`} fill="url(#story-grad)" />
-      <path id="story-path" d={d} fill="none" stroke="var(--cobalt)" strokeWidth={3} pathLength={1} strokeDasharray={1} strokeLinecap="round" />
+      <path id={`${idPrefix}-area`} d={`${d}L${w} ${h}L0 ${h}Z`} fill={`url(#${idPrefix}-grad)`} />
+      <path id={`${idPrefix}-path`} d={d} fill="none" stroke="var(--cobalt)" strokeWidth={3} vectorEffect="non-scaling-stroke" pathLength={1} strokeDasharray={1} strokeLinecap="round" />
       {minIdx >= 0 && <circle cx={x(minIdx)} cy={y(lo)} r={7} fill="var(--surface)" stroke="var(--outflow)" strokeWidth={3} />}
     </svg>
   );

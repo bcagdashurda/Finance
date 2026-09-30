@@ -4,11 +4,11 @@ import { Trash } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { Sheet } from '@/ui/Overlay';
 import { Button } from '@/ui/Button';
-import { DateInput, Field, MoneyInput, Select, TextInput } from '@/ui/Field';
+import { DateInput, Field, MoneyInput, Select, TextInput, focusFirstInvalid } from '@/ui/Field';
 import { Segmented } from '@/ui/Segmented';
 import { Toggle } from '@/ui/bits';
 import { cn } from '@/ui/cn';
-import { addMonths, makeDate } from '@/domain/dates';
+import { makeDate } from '@/domain/dates';
 import type { FlowDirection, Frequency, RecurringRule, RecurringTemplate } from '@/domain/types';
 import type { WeekendPolicy } from '@/domain/dates';
 import { createRecurring, deleteRecurring, updateRecurring } from '@/data/repo';
@@ -59,6 +59,7 @@ function RecurringForm({ rule, onDone }: { rule: RecurringRule | null; onDone: (
     template: rule?.template as RecurringTemplate | undefined,
   });
   const [saving, setSaving] = useState(false);
+  const [errors, setErrors] = useState<Record<string, string>>({});
   const set = (p: Partial<typeof s>) => setS((prev) => ({ ...prev, ...p }));
   const account = f.accountsById.get(s.accountId);
 
@@ -66,7 +67,19 @@ function RecurringForm({ rule, onDone }: { rule: RecurringRule | null; onDone: (
     const y = Number(f.today.slice(0, 4));
     const m = Number(f.today.slice(5, 7));
     let anchor = makeDate(y, t.quarterlyAnchorMonth ?? m, Math.min(t.day, 28));
-    if (t.day > 28) anchor = addMonths(makeDate(y, 1, 31), m - 1);
+    if (t.day > 28) {
+      // "Ay sonu": çapa 31 çeken bir ayda olmalı; yoksa (ör. 30 Eylül) sonraki aylar da 30'una kayar
+      let yy = y;
+      let mm = m;
+      while (new Date(Date.UTC(yy, mm, 0)).getUTCDate() < 31) {
+        mm -= 1;
+        if (mm < 1) {
+          mm = 12;
+          yy -= 1;
+        }
+      }
+      anchor = makeDate(yy, mm, 31);
+    }
     if (t.frequency === 'quarterly') anchor = makeDate(y, t.quarterlyAnchorMonth!, t.day);
     const cat = f.categories.find((c) => c.icon === t.categoryIcon && c.kind === 'expense');
     set({
@@ -81,15 +94,17 @@ function RecurringForm({ rule, onDone }: { rule: RecurringRule | null; onDone: (
   }
 
   async function save() {
-    if (!s.title.trim() || !s.amount) {
-      toast.error('Başlık ve tutar girin');
-      return;
-    }
+    const e: Record<string, string> = {};
+    if (!s.title.trim()) e.title = 'Kalemi tanıyacağınız bir başlık yazın (ör. Fabrika kirası)';
+    if (!s.amount || s.amount <= 0) e.amount = 'Tutarı yazın';
+    if (s.endDate && s.endDate < s.anchorDate) e.end = 'Bitiş, başlangıçtan önce olamaz';
+    setErrors(e);
+    if (Object.keys(e).length) return focusFirstInvalid();
     setSaving(true);
     const payload = {
       title: s.title.trim(),
       direction: s.direction,
-      amount: s.amount,
+      amount: s.amount!,
       currency: account?.currency ?? 'TRY',
       frequency: s.frequency,
       interval: Math.max(1, s.interval),
@@ -127,16 +142,16 @@ function RecurringForm({ rule, onDone }: { rule: RecurringRule | null; onDone: (
                 className={cn('rounded-[12px] border px-3 py-2.5 text-left transition-colors', s.template === t.key ? 'border-cobalt bg-cobalt-soft' : 'border-line hover:border-line-strong')}
               >
                 <div className="text-xs font-medium">{t.title}</div>
-                <div className="text-[10.5px] text-muted">{t.hint}</div>
+                <div className="text-2xs text-muted">{t.hint}</div>
               </button>
             ))}
           </div>
         </div>
       )}
       <Segmented label="Yön" value={s.direction} onChange={(direction) => set({ direction })} options={[{ value: 'out', label: 'Ödeme (çıkış)' }, { value: 'in', label: 'Tahsilat (giriş)' }]} />
-      <Field label="Başlık">{(p) => <TextInput {...p} value={s.title} onChange={(e) => set({ title: e.target.value })} placeholder="Fabrika kirası" />}</Field>
+      <Field label="Başlık" error={errors.title}>{(p) => <TextInput {...p} value={s.title} onChange={(e) => set({ title: e.target.value })} placeholder="Fabrika kirası" />}</Field>
       <div className="grid gap-4 sm:grid-cols-2">
-        <Field label="Tutar">{(p) => <MoneyInput {...p} value={s.amount} currency={account?.currency ?? 'TRY'} onValueChange={(amount) => set({ amount })} />}</Field>
+        <Field label="Tutar" error={errors.amount}>{(p) => <MoneyInput {...p} value={s.amount} currency={account?.currency ?? 'TRY'} onValueChange={(amount) => set({ amount })} />}</Field>
         <Field label="Hesap">
           {(p) => (
             <Select {...p} value={s.accountId} onChange={(e) => set({ accountId: e.target.value })}>
@@ -194,7 +209,7 @@ function RecurringForm({ rule, onDone }: { rule: RecurringRule | null; onDone: (
             </Select>
           )}
         </Field>
-        <Field label="Bitiş" optional>
+        <Field label="Bitiş" optional error={errors.end} hint={!errors.end ? 'Boşsa süresiz devam eder' : undefined}>
           {(p) => <TextInput {...p} type="date" value={s.endDate} onChange={(e) => set({ endDate: e.target.value })} />}
         </Field>
       </div>

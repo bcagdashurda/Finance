@@ -32,3 +32,26 @@ export function occurrences(rule: RecurringRule, from: ISODate, to: ISODate): Oc
   }
   return out;
 }
+
+/**
+ * Geçmiş penceredeki işaretlenmemiş tekrarlar ("Bekleyenler"). Kuralın uygulamaya eklendiği günden
+ * öncesi sayılmaz: bugün eklenen kiranın geçen ayki oluşumu "ödenmedi" diye görünmemeli.
+ */
+export function unpostedOccurrences(
+  rules: RecurringRule[],
+  posted: Set<string>,
+  today: ISODate,
+  lookbackDays: number,
+): Array<{ rule: RecurringRule; occurrence: Occurrence }> {
+  const out: Array<{ rule: RecurringRule; occurrence: Occurrence }> = [];
+  for (const r of rules) {
+    if (!r.active || r.autoPost) continue;
+    const added = r.createdAt.slice(0, 10);
+    const window = addDays(today, -lookbackDays);
+    const from = added > window ? added : window;
+    for (const o of occurrences(r, from, addDays(today, -1))) {
+      if (!posted.has(`${r.id}:${o.nominal}`)) out.push({ rule: r, occurrence: o });
+    }
+  }
+  return out;
+}

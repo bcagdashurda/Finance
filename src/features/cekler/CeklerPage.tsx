@@ -48,7 +48,8 @@ export default function CeklerPage() {
   const issued = live.filter((i) => i.direction === 'issued');
   const bounced = f.instruments.filter((i) => i.status === 'bounced');
   const sum = (l: Instrument[]) => l.reduce((s, i) => s + amountInBase(i.amount, i.rateToBase), 0);
-  const avgDays = received.length ? Math.round(received.reduce((s, i) => s + diffDays(i.dueDate, f.today) * i.amount, 0) / received.reduce((s, i) => s + i.amount, 0)) : 0;
+  // Tutar ağırlıklı ortalama vade (farklı para birimleri TL karşılığıyla ağırlıklandırılır)
+  const avgDays = received.length ? Math.round(received.reduce((s, i) => s + diffDays(i.dueDate, f.today) * amountInBase(i.amount, i.rateToBase), 0) / sum(received)) : 0;
 
   // Vade merdiveni: 12 hafta
   const ladder = useMemo(() => {
@@ -136,7 +137,7 @@ export default function CeklerPage() {
             const c = f.contactsById.get(i.contactId);
             const days = diffDays(i.dueDate, f.today);
             return (
-              <li key={i.id} className="grid grid-cols-[1fr_auto] items-center gap-3 px-6 py-3 sm:grid-cols-[1fr_140px_140px_150px_40px]">
+              <li key={i.id} className="grid grid-cols-[1fr_auto_auto] items-center gap-3 px-4 py-3 sm:grid-cols-[1fr_140px_140px_150px_40px] sm:px-6">
                 <div className="flex min-w-0 items-center gap-3">
                   <span className={cn('flex h-9 w-9 shrink-0 items-center justify-center rounded-[11px]', i.direction === 'received' ? 'bg-inflow-soft text-inflow-text' : 'bg-outflow-soft text-outflow-text')}>
                     {i.direction === 'received' ? <ArrowDownLeft size={16} /> : <ArrowUpRight size={16} />}
@@ -150,6 +151,11 @@ export default function CeklerPage() {
                       {i.bank && ` · ${i.bank}`}
                       {i.endorsedToId && ` · ciro: ${f.contactsById.get(i.endorsedToId)?.name}`}
                     </div>
+                    {/* Dar ekranda vade ve durum kolonları gizli: aynı bilgi burada */}
+                    <div className={cn('text-2xs sm:hidden', LIVE.includes(i.status) && days < 0 ? 'text-outflow-text' : 'text-muted')}>
+                      vade {formatDateShort(i.dueDate)}
+                      {LIVE.includes(i.status) ? ` · ${relativeDay(i.dueDate, f.today)}` : ''} · {STATUS[i.status].label}
+                    </div>
                   </div>
                 </div>
                 <div className="hidden sm:block">
@@ -162,7 +168,7 @@ export default function CeklerPage() {
                   <Badge tone={STATUS[i.status].tone}>{STATUS[i.status].label}</Badge>
                 </div>
                 <Money value={i.amount} currency={i.currency} split className="text-right text-sm font-semibold" />
-                <div className="hidden justify-end sm:flex">
+                <div className="flex justify-end">
                   {LIVE.includes(i.status) && (
                     <DropdownMenu.Root>
                       <DropdownMenu.Trigger asChild>
@@ -235,12 +241,19 @@ function EndorseModal({ ins, onClose }: { ins: Instrument; onClose: () => void }
     .map((d) => ({ id: d.id, dueDate: d.dueDate, remaining: f.docStates.get(d.id)?.remaining ?? 0 }))
     .filter((d) => d.remaining > 0);
   const plan = planAllocation(ins.amount, open);
+  // Faturalarla açıklanmayan borç (devir vb.): fatura dışı tutar önce bundan düşer, avans sayılmaz
+  const supplier = f.contactsById.get(to);
+  const owed = supplier && supplier.currency === ins.currency ? -(f.contactBalances.get(to) ?? 0) : 0;
+  const carried = Math.max(0, owed - open.reduce((s, d) => s + d.remaining, 0));
+  const fromCarried = Math.min(plan.unallocated, carried);
+  const advance = plan.unallocated - fromCarried;
+  const money = (v: number) => formatShort(v, ins.currency);
   return (
     <Modal
       open
       onOpenChange={(o) => !o && onClose()}
       title="Ciro et"
-      description={`${ins.serialNo} numaralı çek (${formatShort(ins.amount)}) tedarikçiye verilecek.`}
+      description={`${ins.serialNo} numaralı çek (${money(ins.amount)}) tedarikçiye verilecek.`}
       footer={
         <>
           <Button variant="ghost" onClick={onClose}>
@@ -251,7 +264,9 @@ function EndorseModal({ ins, onClose }: { ins: Instrument; onClose: () => void }
             disabled={!to}
             onClick={async () => {
               await transitionInstrument(ins, { status: 'endorsed', date: f.today, endorsedToId: to, allocations: plan.allocations });
-              toast.success('Çek ciro edildi', { description: `${plan.allocations.length} borç belgesi kapatıldı` });
+              toast.success('Çek ciro edildi', {
+                description: plan.allocations.length ? `${plan.allocations.length} borç belgesi kapatıldı` : `${supplier?.name ?? 'Tedarikçi'} cari bakiyesine işlendi`,
+              });
               onClose();
             }}
           >
@@ -267,9 +282,14 @@ function EndorseModal({ ins, onClose }: { ins: Instrument; onClose: () => void }
           </option>
         ))}
       </Select>
-      <p className="mt-3 text-xs text-muted">
-        {plan.allocations.length ? `Tedarikçinin ${plan.allocations.length} açık borcu vade sırasıyla kapanacak.` : 'Tedarikçinin açık borcu yok; tutar avans olarak işlenir.'}
-        {plan.unallocated > 0 && plan.allocations.length > 0 && ` Kalan ${formatShort(plan.unallocated)} avans olur.`}
+      <p className="mt-3 text-xs leading-relaxed text-muted">
+        {plan.allocations.length
+          ? `Tedarikçinin ${plan.allocations.length} açık faturası vade sırasıyla kapanacak.`
+          : carried > 0
+            ? 'Açık fatura yok.'
+            : 'Tedarikçinin açık borcu yok; tutar avans olarak işlenir.'}
+        {fromCarried > 0 && ` ${money(fromCarried)} cari bakiyesinden (devir) düşülür.`}
+        {advance > 0 && (plan.allocations.length > 0 || carried > 0) && ` Fazla kalan ${money(advance)} avans olur.`}
       </p>
     </Modal>
   );

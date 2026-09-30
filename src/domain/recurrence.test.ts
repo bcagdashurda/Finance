@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { rule } from '@/test/factories';
-import { occurrences } from './recurrence';
+import { occurrences, unpostedOccurrences } from './recurrence';
 
 const dates = (list: { date: string }[]) => list.map((o) => o.date);
 
@@ -40,5 +40,21 @@ describe('occurrences', () => {
   it('returns nothing for inactive rules', () => {
     const r = rule({ anchorDate: '2026-01-05', active: false });
     expect(occurrences(r, '2026-01-01', '2026-12-31')).toEqual([]);
+  });
+});
+
+describe('unpostedOccurrences', () => {
+  const posted = new Set<string>();
+  it('lists missed occurrences of the lookback window, but never before the rule was added', () => {
+    const old = rule({ id: 'eski', anchorDate: '2026-01-05', createdAt: '2026-01-01T09:00:00.000Z' });
+    const fresh = rule({ id: 'yeni', anchorDate: '2026-01-05', createdAt: '2026-09-30T09:00:00.000Z' });
+    const list = unpostedOccurrences([old, fresh], posted, '2026-09-30', 45);
+    expect(list.map((x) => `${x.rule.id}:${x.occurrence.nominal}`)).toEqual(['eski:2026-09-05']);
+  });
+
+  it('skips posted and auto-posted occurrences', () => {
+    const r = rule({ id: 'k', anchorDate: '2026-01-05', createdAt: '2026-01-01T09:00:00.000Z' });
+    const auto = rule({ id: 'a', anchorDate: '2026-01-05', createdAt: '2026-01-01T09:00:00.000Z', autoPost: true });
+    expect(unpostedOccurrences([r, auto], new Set(['k:2026-09-05']), '2026-09-30', 45)).toEqual([]);
   });
 });

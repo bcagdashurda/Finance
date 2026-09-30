@@ -338,12 +338,155 @@
   }
 }
 
+/* ---------------------------------------------------------------------------
+ * Yazdırma / PDF: beyaz kağıt, açık tema renkleri, sayfaya sığan tablo ve grafikler,
+ * sayfa başlığı + "Sayfa X / Y" altbilgisi. Raporlar yatay A4 (12 aylık tablolar sığsın).
+ * ------------------------------------------------------------------------- */
+@page {
+  size: A4;
+  margin: 14mm 12mm 16mm;
+  @bottom-left {
+    content: 'Mizan · Nakit Kokpiti';
+    font-family: 'IBM Plex Sans Variable', system-ui, sans-serif;
+    font-size: 7.5pt;
+    color: #8a93aa;
+  }
+  @bottom-right {
+    content: 'Sayfa ' counter(page) ' / ' counter(pages);
+    font-family: 'IBM Plex Sans Variable', system-ui, sans-serif;
+    font-size: 7.5pt;
+    color: #8a93aa;
+  }
+}
+@page wide {
+  size: A4 landscape;
+}
+
+.print-only {
+  display: none;
+}
+
 @media print {
-  :root {
+  /* Koyu temada da kağıda açık tema basılır (açık renk metin beyaz kâğıtta okunmaz) */
+  :root,
+  :root[data-theme='dark'],
+  :root:not([data-theme='light']) {
+    color-scheme: light;
     --ground: #ffffff;
+    --ground-2: #ffffff;
     --surface: #ffffff;
+    --surface-2: #f7f9fb;
+    --surface-sunken: #f1f4f8;
+    --ink: #0f1a3d;
+    --ink-2: #2b365a;
+    --ink-muted: #5a6582;
+    --ink-faint: #8a93aa;
+    --ink-inverse: #ffffff;
+    --line: rgb(15 26 61 / 0.14);
+    --line-strong: rgb(15 26 61 / 0.24);
+    --grid: rgb(15 26 61 / 0.09);
+    --cobalt: #2340b8;
+    --cobalt-soft: #e6ebfb;
+    --cobalt-ink: #1b3399;
+    --inflow: #008a78;
+    --inflow-text: #067a6c;
+    --inflow-soft: #dff3ef;
+    --outflow: #c23a2b;
+    --outflow-text: #b3352a;
+    --outflow-soft: #fbe7e4;
+    --saffron: #b8860b;
+    --saffron-text: #8f5a00;
+    --saffron-soft: #fbf0d9;
+  }
+  html,
+  body {
+    background: #fff !important;
+    font-size: 10pt;
   }
   .no-print {
+    display: none !important;
+  }
+  .print-only {
+    display: block !important;
+  }
+  /* Yatay sayfa türü tüm belgeye uygulanır: yalnızca rapor kutusuna uygulansa, ardından gelen
+     görünmez öğeler (bildirim alanı vb.) varsayılan dikey türde boş bir sayfa açıyordu */
+  body:has(.print-wide) {
+    page: wide;
+  }
+  [data-sonner-toaster],
+  section[aria-label^='Notifications'] {
+    display: none !important;
+  }
+  .min-h-dvh,
+  .min-h-screen {
+    min-height: 0 !important;
+  }
+  /* Ekran efektleri kağıtta yok: doku, gölge, bulanıklık, açılış animasyonları */
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    box-shadow: none !important;
+    text-shadow: none !important;
+    backdrop-filter: none !important;
+  }
+  .grain::before,
+  .panel::before,
+  .panel::after {
+    display: none !important;
+  }
+  main {
+    max-width: none !important;
+    padding: 0 !important;
+  }
+  .panel {
+    background: #fff !important;
+    border-color: rgb(15 26 61 / 0.14) !important;
+    break-inside: avoid;
+  }
+  /* Uzun tablo/listeler sayfalar arasında bölünebilir (yoksa panel bütünüyle sonraki sayfaya
+     itilip ilk sayfada yalnızca başlık kalıyordu); satırlar ve tablo başlığı bütün kalır */
+  .panel:has(table),
+  .panel:has(ul) {
+    break-inside: auto;
+  }
+  li {
+    break-inside: avoid;
+  }
+  .overflow-x-auto,
+  .overflow-hidden,
+  .overflow-auto {
+    overflow: visible !important;
+  }
+  table {
+    width: 100% !important;
+    min-width: 0 !important;
+    font-size: 8pt;
+  }
+  table td,
+  table th {
+    padding: 3px 4px !important;
+  }
+  thead {
+    display: table-header-group;
+  }
+  tr {
+    break-inside: avoid;
+  }
+  h1,
+  h2,
+  h3 {
+    break-after: avoid;
+  }
+  /* Grafikler kâğıt genişliğine ölçeklenir (viewBox ile) */
+  svg {
+    max-width: 100% !important;
+    height: auto;
+  }
+  /* Ekrandaki seçici düğmeler (dönem, esas) kâğıtta anlamsız; seçimi başlık yazar */
+  [role='radiogroup'] {
     display: none !important;
   }
 }

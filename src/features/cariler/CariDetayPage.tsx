@@ -234,19 +234,30 @@ export default function CariDetayPage() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-line">
-                {[...statement].reverse().slice(0, 200).map((r, i) => (
-                  <tr key={i} className="transition-colors hover:bg-surface-2">
-                    <td className="num whitespace-nowrap px-2 py-2.5 text-xs text-muted">{r.date ? formatDateShort(r.date) : '—'}</td>
-                    <td className="px-2 py-2.5">
-                      <span className="line-clamp-1">{r.description}</span>
-                    </td>
-                    <td className="px-2 py-2.5 text-right">{r.debit ? <Money value={r.debit} currency={c.currency} className="text-ink-2" /> : ''}</td>
-                    <td className="px-2 py-2.5 text-right">{r.credit ? <Money value={r.credit} currency={c.currency} className="text-ink-2" /> : ''}</td>
-                    <td className="px-2 py-2.5 text-right">
-                      <Money value={r.balance} currency={c.currency} className="font-semibold" />
-                    </td>
-                  </tr>
-                ))}
+                {[...statement].reverse().slice(0, 200).map((r, i) => {
+                  // İleri tarihli satır (ör. teyit bekleyen sipariş) bugünkü "Bize borcu"na dahil değildir
+                  const planned = Boolean(r.date && r.date > f.today);
+                  return (
+                    <tr key={i} className={cn('transition-colors hover:bg-surface-2', planned && 'text-muted')}>
+                      <td className="num whitespace-nowrap px-2 py-2.5 text-xs text-muted">{r.date ? formatDateShort(r.date) : '—'}</td>
+                      <td className="px-2 py-2.5">
+                        <span className="line-clamp-1">
+                          {planned && (
+                            <Badge tone="warn" className="mr-1.5 align-middle">
+                              Planlı
+                            </Badge>
+                          )}
+                          {r.description}
+                        </span>
+                      </td>
+                      <td className="px-2 py-2.5 text-right">{r.debit ? <Money value={r.debit} currency={c.currency} className={planned ? 'text-muted' : 'text-ink-2'} /> : ''}</td>
+                      <td className="px-2 py-2.5 text-right">{r.credit ? <Money value={r.credit} currency={c.currency} className={planned ? 'text-muted' : 'text-ink-2'} /> : ''}</td>
+                      <td className="px-2 py-2.5 text-right">
+                        <Money value={r.balance} currency={c.currency} className={planned ? 'text-muted' : 'font-semibold'} />
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>

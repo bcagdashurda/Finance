@@ -127,6 +127,7 @@ export function ForecastChart({
         <svg
           width={width}
           height={height}
+          viewBox={`0 0 ${width} ${height}`}
           role="img"
           aria-label={label}
           onPointerMove={(e) => {

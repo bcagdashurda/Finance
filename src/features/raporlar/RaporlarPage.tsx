@@ -83,9 +83,34 @@ export default function RaporlarPage() {
     toast.success('Excel dosyası indirildi');
   }
 
+  // 12 aylık tablolar dikey A4'e sığmaz: yatay sayfa
+  const wide = report === 'pnl' || report === 'cashflow' || report === 'kdv';
+  const periodDependent = report !== 'aging' && report !== 'budget' && report !== 'fx';
+
   return (
-    <div>
+    <div className={wide ? 'print-wide' : undefined}>
+      {/* Yalnızca çıktıda: belge başlığı */}
+      <header className="print-only mb-5 border-b border-line-strong pb-3">
+        <div className="flex items-end justify-between gap-6">
+          <div>
+            <div className="text-[9pt] text-muted">{f.workspace.legalName ?? f.workspace.name}</div>
+            <div className="display text-[18pt] font-semibold leading-tight text-ink">
+              {current.label}
+              {report === 'pnl' && <span className="text-[11pt] font-normal text-muted"> · {basis === 'cash' ? 'nakit esası' : 'tahakkuk esası'}</span>}
+            </div>
+          </div>
+          <div className="text-right text-[8.5pt] text-muted">
+            {periodDependent && (
+              <div>
+                Dönem: {formatDate(from)} – {formatDate(to)}
+              </div>
+            )}
+            <div>Hazırlanma: {formatDate(f.today)}</div>
+          </div>
+        </div>
+      </header>
       <PageHeader
+        className="no-print"
         kicker={`${f.workspace.legalName ?? f.workspace.name} · ${formatDate(from)} – ${formatDate(to)}`}
         title="Raporlar"
         actions={
@@ -464,7 +489,10 @@ function BudgetView() {
 
 function KdvView({ from, to }: { from: ISODate; to: ISODate }) {
   const f = useFinance();
-  const rows = vatHistory(f.documents, monthKey(from), monthKey(to));
+  const all = vatHistory(f.documents, monthKey(from), monthKey(to));
+  // İlk KDV hareketinden önceki boş aylar gürültüdür (yeni işletmede 11 satır sıfır görünmesin)
+  const first = all.findIndex((r) => r.output || r.input || r.carriedIn);
+  const rows = first < 0 ? [] : all.slice(first);
   return (
     <Panel reveal={0} padded={false}>
       <div className="px-6 pt-5">
@@ -490,11 +518,18 @@ function KdvView({ from, to }: { from: ISODate; to: ISODate }) {
                 <td className="num px-3 py-2.5 text-right">{formatMoney(r.output, 'TRY', { decimals: 0 })}</td>
                 <td className="num px-3 py-2.5 text-right">{formatMoney(r.input, 'TRY', { decimals: 0 })}</td>
                 <td className="num px-3 py-2.5 text-right text-muted">{r.carriedIn ? formatMoney(r.carriedIn, 'TRY', { decimals: 0 }) : '—'}</td>
-                <td className="num px-3 py-2.5 text-right font-semibold text-outflow-text">{r.payable ? formatMoney(r.payable, 'TRY', { decimals: 0 }) : '—'}</td>
-                <td className="num px-3 py-2.5 text-right text-inflow-text">{r.carriedOut ? formatMoney(r.carriedOut, 'TRY', { decimals: 0 }) : '—'}</td>
+                <td className={cn('num px-3 py-2.5 text-right', r.payable ? 'font-semibold text-outflow-text' : 'text-muted')}>{r.payable ? formatMoney(r.payable, 'TRY', { decimals: 0 }) : '—'}</td>
+                <td className={cn('num px-3 py-2.5 text-right', r.carriedOut ? 'text-inflow-text' : 'text-muted')}>{r.carriedOut ? formatMoney(r.carriedOut, 'TRY', { decimals: 0 }) : '—'}</td>
                 <td className={cn('num px-6 py-2.5 text-right', r.dueDate >= f.today ? 'text-saffron-text' : 'text-muted')}>{r.dueDate.split('-').reverse().join('.')}</td>
               </tr>
             ))}
+            {!rows.length && (
+              <tr>
+                <td colSpan={7} className="px-6 py-10 text-center text-sm text-muted">
+                  Bu dönemde KDV'li fatura yok. Alacak ve borç faturalarını KDV oranıyla girdikçe hesaplanan, indirilecek ve devreden KDV burada oluşur.
+                </td>
+              </tr>
+            )}
           </tbody>
         </table>
       </div>

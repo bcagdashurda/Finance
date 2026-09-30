@@ -56,7 +56,7 @@ function FlowBarsChart({ months, height = 260, delay = 0.2, label }: FlowBarsPro
   return (
     <div ref={ref} className="relative w-full select-none" style={{ height }}>
       {width > 0 && (
-        <svg width={width} height={height} role="img" aria-label={label}>
+        <svg width={width} height={height} viewBox={`0 0 ${width} ${height}`} role="img" aria-label={label}>
           <g transform={`translate(${M.left},${M.top})`}>
             {y.ticks(4).map((t) => (
               <g key={t}>

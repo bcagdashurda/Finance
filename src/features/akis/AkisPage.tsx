@@ -20,7 +20,7 @@ import { formatShort } from '@/domain/money';
 import type { Adjustment, Scenario } from '@/domain/types';
 import { deleteScenario, newId, setWorkspaceSetting, updateScenario } from '@/data/repo';
 import { SETTINGS_KEYS } from '@/data/load';
-import { ScenarioSheet } from './ScenarioSheet';
+import { ScenarioSheet, type ScenarioDraft } from './ScenarioSheet';
 import { describeAdjustment } from './scenario-ui';
 
 type Horizon = '30' | '90' | '180' | '365';
@@ -35,12 +35,26 @@ const SOURCE_LABEL: Record<ForecastItem['source'], string> = {
   planned: 'Planlı işlem',
 };
 
+/**
+ * Uyarıdan çözüm taslağı: sıkışmayı en çok tetikleyen ertelenebilir ödemeyi (belge / çek / tekrarlayan)
+ * 14 gün kaydırır. Kullanıcı etkisini anında görür, dilerse değiştirir.
+ */
+function solutionDraft(alert: { date: string; drivers: ForecastItem[] }): ScenarioDraft {
+  const target = alert.drivers
+    .filter((d) => d.direction === 'out' && d.refId && (d.source === 'document' || d.source === 'instrument' || d.source === 'recurring'))
+    .sort((a, b) => b.expectedAmount - a.expectedAmount)[0];
+  const name = `${formatDayMonth(alert.date)} sıkışmasına çözüm`;
+  if (!target) return { name, adjustments: [] };
+  const kind = target.source === 'document' ? 'document' : target.source === 'instrument' ? 'instrument' : 'recurring';
+  return { name, adjustments: [{ id: newId(), type: 'delay', target: { kind, id: target.refId! }, days: 14 }] };
+}
+
 export default function AkisPage() {
   const f = useFinance();
   const navigate = useNavigate();
   const [horizon, setHorizon] = useState<Horizon>('90');
   const [showBand, setShowBand] = useState(true);
-  const [sheet, setSheet] = useState<{ open: boolean; scenario: Scenario | null }>({ open: false, scenario: null });
+  const [sheet, setSheet] = useState<{ open: boolean; scenario: Scenario | null; draft?: ScenarioDraft | null }>({ open: false, scenario: null });
   const [quick, setQuick] = useState<Adjustment[]>([]);
   const [filter, setFilter] = useState<'all' | 'in' | 'out'>('all');
   const [showTempo, setShowTempo] = useState(false);
@@ -160,7 +174,7 @@ export default function AkisPage() {
                 {alert.drivers.length > 0 && ` Tetikleyenler: ${alert.drivers.map((d) => (d.contactId ? f.contactsById.get(d.contactId)?.name : d.label)).join(', ')}.`}
               </div>
             </div>
-            <Button size="sm" variant="secondary" onClick={() => setSheet({ open: true, scenario: null })}>
+            <Button size="sm" variant="secondary" onClick={() => setSheet({ open: true, scenario: null, draft: solutionDraft(alert) })}>
               Çözüm senaryosu kur
             </Button>
           </motion.div>
@@ -215,6 +229,9 @@ export default function AkisPage() {
             {f.scenarios.map((s) => {
               const r = buildForecast(forecastInput(f, days, { adjustments: s.adjustments }));
               const delta = r.min.value - base.min.value;
+              const belowOf = (x: typeof r) => x.days.filter((d) => d.expected < f.settings.minCashBalance).length;
+              const belowS = belowOf(r);
+              const belowB = belowOf(base);
               return (
                 <li key={s.id} className={cn('rounded-[16px] border p-3.5 transition-colors', s.active ? 'border-line-strong bg-surface-2' : 'border-line')}>
                   <div className="flex items-start gap-3">
@@ -223,8 +240,17 @@ export default function AkisPage() {
                       <div className="text-sm font-medium leading-snug">{s.name}</div>
                       <div className="mt-1 text-2xs text-muted">{s.adjustments.map((a) => describeAdjustment(a, f)).join(' · ')}</div>
                       <div className={cn('mt-1.5 text-2xs font-medium', delta < 0 ? 'text-outflow-text' : delta > 0 ? 'text-inflow-text' : 'text-muted')}>
-                        En düşük nokta {delta === 0 ? 'değişmez' : `${delta > 0 ? '+' : ''}${formatShort(delta)}`} · {formatDayMonth(r.min.date)}
+                        {/* "En düşük nokta −₺96 bin" eksi bakiye sanılıyordu: fark olduğu açıkça yazılır */}
+                        {delta === 0
+                          ? 'En düşük nokta değişmez'
+                          : `En düşük nokta ${formatShort(Math.abs(delta))} ${delta > 0 ? 'yükselir' : 'düşer'}`}{' '}
+                        · {formatShort(r.min.value)}, {formatDayMonth(r.min.date)}
                       </div>
+                      {(belowS > 0 || belowB > 0) && (
+                        <div className={cn('mt-0.5 text-2xs', belowS < belowB ? 'text-inflow-text' : belowS > belowB ? 'text-outflow-text' : 'text-muted')}>
+                          Eşiğin altında {belowS} gün {belowS !== belowB && `(bazda ${belowB})`}
+                        </div>
+                      )}
                     </div>
                   </div>
                   <div className="mt-2 flex items-center justify-end gap-1">
@@ -361,7 +387,7 @@ export default function AkisPage() {
         )}
       </Panel>
 
-      <ScenarioSheet open={sheet.open} scenario={sheet.scenario} horizon={days} onOpenChange={(open) => setSheet((s) => ({ ...s, open }))} />
+      <ScenarioSheet open={sheet.open} scenario={sheet.scenario} draft={sheet.draft} horizon={days} onOpenChange={(open) => setSheet((s) => ({ ...s, open }))} />
     </div>
   );
 }
