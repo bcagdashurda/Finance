@@ -1,0 +1,349 @@
+@import 'tailwindcss';
+@import '@fontsource-variable/ibm-plex-sans/standard.css';
+@import '@fontsource-variable/bricolage-grotesque/standard.css';
+
+/* ==========================================================================
+   Mizan tasarım token'ları — "İznik × Gravür"
+   Açık: Porselen · Koyu: Gece Kobaltı
+   ========================================================================== */
+
+:root {
+  color-scheme: light;
+
+  /* Zeminler */
+  --ground: #f3f5f8;
+  --ground-2: #eaeef4;
+  --surface: #ffffff;
+  --surface-2: #f7f9fb;
+  --surface-sunken: #eef1f6;
+  --overlay: rgb(15 26 61 / 0.32);
+
+  /* Mürekkep */
+  --ink: #0f1a3d;
+  --ink-2: #2b365a;
+  --ink-muted: #5a6582;
+  --ink-faint: #8a93aa;
+  --ink-inverse: #ffffff;
+
+  /* Çizgiler */
+  --line: rgb(15 26 61 / 0.1);
+  --line-strong: rgb(15 26 61 / 0.18);
+  --grid: rgb(15 26 61 / 0.07);
+
+  /* Marka ve anlam */
+  --cobalt: #2340b8;
+  --cobalt-hover: #1b3399;
+  --cobalt-soft: #e6ebfb;
+  --cobalt-ink: #1b3399;
+
+  --inflow: #008a78; /* grafik işareti */
+  --inflow-text: #067a6c; /* 5.2:1 */
+  --inflow-soft: #dff3ef;
+
+  --outflow: #c23a2b;
+  --outflow-text: #b3352a;
+  --outflow-soft: #fbe7e4;
+
+  --saffron: #b8860b;
+  --saffron-text: #8f5a00;
+  --saffron-soft: #fbf0d9;
+
+  --critical: #b3261e;
+
+  /* Kategori paleti (doğrulandı: CVD ΔE ≥ 10.1, normal ≥ 18.7, kontrast ≥ 3:1) */
+  --cat-1: #2e5bd8;
+  --cat-2: #e0643f;
+  --cat-3: #169c8c;
+  --cat-4: #b8860b;
+  --cat-5: #d9588a;
+  --cat-6: #4e8f2e;
+  --cat-7: #6a4bc4;
+  --cat-8: #c73a3a;
+  --cat-other: #8a93aa;
+
+  /* Gölge yerine ton + tek yumuşak gölge (yalnızca yüzen katmanlar) */
+  --float-shadow: 0 1px 0 rgb(15 26 61 / 0.04), 0 12px 32px -12px rgb(15 26 61 / 0.28);
+  --focus: 0 0 0 2px var(--surface), 0 0 0 4px var(--cobalt);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --ground: #0a1024;
+    --ground-2: #0d1430;
+    --surface: #111a33;
+    --surface-2: #151f3c;
+    --surface-sunken: #0c142b;
+    --overlay: rgb(3 6 18 / 0.6);
+    --ink: #e7ecf7;
+    --ink-2: #c6cde0;
+    --ink-muted: #97a1ba;
+    --ink-faint: #6c7794;
+    --ink-inverse: #0a1024;
+    --line: rgb(199 210 240 / 0.1);
+    --line-strong: rgb(199 210 240 / 0.18);
+    --grid: rgb(199 210 240 / 0.07);
+    --cobalt: #8fa3ff;
+    --cobalt-hover: #a9b8ff;
+    --cobalt-soft: #1b2650;
+    --cobalt-ink: #b4c1ff;
+    --inflow: #1fa592;
+    --inflow-text: #43d1bd;
+    --inflow-soft: #0f2e33;
+    --outflow: #e4654d;
+    --outflow-text: #ff8a73;
+    --outflow-soft: #35192a;
+    --saffron: #c08a12;
+    --saffron-text: #f2b84b;
+    --saffron-soft: #2f2616;
+    --critical: #ff6b5e;
+    --cat-1: #5b7bf0;
+    --cat-2: #e0683f;
+    --cat-3: #1fa090;
+    --cat-4: #c08a12;
+    --cat-5: #d05c8a;
+    --cat-6: #5b9a36;
+    --cat-7: #8a6fe0;
+    --cat-8: #d24c4c;
+    --cat-other: #6c7794;
+    --float-shadow: 0 1px 0 rgb(0 0 0 / 0.2), 0 16px 40px -12px rgb(0 0 0 / 0.6);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --ground: #0a1024;
+  --ground-2: #0d1430;
+  --surface: #111a33;
+  --surface-2: #151f3c;
+  --surface-sunken: #0c142b;
+  --overlay: rgb(3 6 18 / 0.6);
+  --ink: #e7ecf7;
+  --ink-2: #c6cde0;
+  --ink-muted: #97a1ba;
+  --ink-faint: #6c7794;
+  --ink-inverse: #0a1024;
+  --line: rgb(199 210 240 / 0.1);
+  --line-strong: rgb(199 210 240 / 0.18);
+  --grid: rgb(199 210 240 / 0.07);
+  --cobalt: #8fa3ff;
+  --cobalt-hover: #a9b8ff;
+  --cobalt-soft: #1b2650;
+  --cobalt-ink: #b4c1ff;
+  --inflow: #1fa592;
+  --inflow-text: #43d1bd;
+  --inflow-soft: #0f2e33;
+  --outflow: #e4654d;
+  --outflow-text: #ff8a73;
+  --outflow-soft: #35192a;
+  --saffron: #c08a12;
+  --saffron-text: #f2b84b;
+  --saffron-soft: #2f2616;
+  --critical: #ff6b5e;
+  --cat-1: #5b7bf0;
+  --cat-2: #e0683f;
+  --cat-3: #1fa090;
+  --cat-4: #c08a12;
+  --cat-5: #d05c8a;
+  --cat-6: #5b9a36;
+  --cat-7: #8a6fe0;
+  --cat-8: #d24c4c;
+  --cat-other: #6c7794;
+  --float-shadow: 0 1px 0 rgb(0 0 0 / 0.2), 0 16px 40px -12px rgb(0 0 0 / 0.6);
+}
+
+@theme inline {
+  --font-sans: 'IBM Plex Sans Variable', 'IBM Plex Sans', system-ui, sans-serif;
+  --font-display: 'Bricolage Grotesque Variable', 'Bricolage Grotesque', 'IBM Plex Sans Variable', system-ui, sans-serif;
+
+  --color-ground: var(--ground);
+  --color-ground-2: var(--ground-2);
+  --color-surface: var(--surface);
+  --color-surface-2: var(--surface-2);
+  --color-sunken: var(--surface-sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-muted: var(--ink-muted);
+  --color-faint: var(--ink-faint);
+  --color-inverse: var(--ink-inverse);
+  --color-line: var(--line);
+  --color-line-strong: var(--line-strong);
+  --color-cobalt: var(--cobalt);
+  --color-cobalt-hover: var(--cobalt-hover);
+  --color-cobalt-soft: var(--cobalt-soft);
+  --color-cobalt-ink: var(--cobalt-ink);
+  --color-inflow: var(--inflow);
+  --color-inflow-text: var(--inflow-text);
+  --color-inflow-soft: var(--inflow-soft);
+  --color-outflow: var(--outflow);
+  --color-outflow-text: var(--outflow-text);
+  --color-outflow-soft: var(--outflow-soft);
+  --color-saffron: var(--saffron);
+  --color-saffron-text: var(--saffron-text);
+  --color-saffron-soft: var(--saffron-soft);
+  --color-critical: var(--critical);
+
+  /* Bringhurst ölçeği */
+  --text-2xs: 0.75rem;
+  --text-2xs--line-height: 1rem;
+  --text-xs: 0.8125rem;
+  --text-xs--line-height: 1.125rem;
+  --text-sm: 0.875rem;
+  --text-sm--line-height: 1.3125rem;
+  --text-base: 1rem;
+  --text-base--line-height: 1.5rem;
+  --text-lg: 1.125rem;
+  --text-lg--line-height: 1.625rem;
+  --text-xl: 1.3125rem;
+  --text-xl--line-height: 1.75rem;
+  --text-2xl: 1.5rem;
+  --text-2xl--line-height: 1.875rem;
+  --text-3xl: 2.25rem;
+  --text-3xl--line-height: 2.5rem;
+  --text-4xl: 3rem;
+  --text-4xl--line-height: 1;
+  --text-5xl: 4.5rem;
+  --text-5xl--line-height: 1;
+  --text-6xl: 6rem;
+  --text-6xl--line-height: 1;
+
+  --radius-panel: 22px;
+  --radius-control: 12px;
+  --radius-chip: 8px;
+
+  --ease-out-quart: cubic-bezier(0.25, 1, 0.5, 1);
+  --ease-in-out-quint: cubic-bezier(0.83, 0, 0.17, 1);
+}
+
+/* ==========================================================================
+   Taban
+   ========================================================================== */
+
+@layer base {
+  html {
+    -webkit-text-size-adjust: 100%;
+    text-rendering: optimizeLegibility;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    font-feature-settings: 'kern';
+  }
+
+  body {
+    margin: 0;
+    min-height: 100dvh;
+    background: var(--ground);
+    color: var(--ink);
+    font-family: var(--font-sans);
+    font-size: 0.875rem;
+    line-height: 1.5;
+  }
+
+  :focus-visible {
+    outline: none;
+    box-shadow: var(--focus);
+    border-radius: 6px;
+  }
+
+  ::selection {
+    background: var(--cobalt-soft);
+    color: var(--ink);
+  }
+
+  button {
+    cursor: pointer;
+  }
+
+  button:disabled {
+    cursor: not-allowed;
+  }
+
+  input,
+  textarea,
+  select,
+  button {
+    font: inherit;
+    color: inherit;
+  }
+
+  h1,
+  h2,
+  h3,
+  h4 {
+    text-wrap: balance;
+  }
+
+  p {
+    text-wrap: pretty;
+  }
+}
+
+/* ==========================================================================
+   Yardımcılar
+   ========================================================================== */
+
+@layer utilities {
+  /* Tablolarda hizalı ve dar rakamlar */
+  .num {
+    font-variant-numeric: tabular-nums lining-nums;
+    font-stretch: 88%;
+  }
+
+  .num-wide {
+    font-variant-numeric: tabular-nums lining-nums;
+  }
+
+  /* Başlık ve büyük rakamlar: optik boyutlu grotesk, sıkı aralık */
+  .display {
+    font-family: var(--font-display);
+    font-optical-sizing: auto;
+    font-variant-numeric: lining-nums proportional-nums;
+    letter-spacing: -0.025em;
+    font-weight: 500;
+  }
+
+  .hairline {
+    border-color: var(--line);
+  }
+
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: var(--line-strong) transparent;
+  }
+
+  .sr-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    padding: 0;
+    margin: -1px;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    white-space: nowrap;
+    border: 0;
+  }
+
+  .safe-bottom {
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+@media print {
+  :root {
+    --ground: #ffffff;
+    --surface: #ffffff;
+  }
+  .no-print {
+    display: none !important;
+  }
+}

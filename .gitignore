@@ -1,0 +1,22 @@
+# Bağımlılıklar ve derleme çıktısı
+node_modules/
+dist/
+
+# Yerel ortam değişkenleri (API anahtarları asla depoya girmez)
+.env
+.env.local
+.env.*.local
+
+# Araç çıktıları
+.playwright-mcp/
+playwright-report/
+test-results/
+coverage/
+*.log
+
+# İşletim sistemi / editör
+.DS_Store
+Thumbs.db
+.vscode/*
+!.vscode/extensions.json
+.idea/

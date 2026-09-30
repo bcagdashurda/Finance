@@ -1,0 +1,313 @@
+/* ==========================================================================
+   Hareket ve doku efektleri
+   Tümü components katmanında: Tailwind yardımcı sınıfları (absolute, p-*) bunları ezebilsin.
+   ========================================================================== */
+
+@layer components {
+
+/* ---- Odometre ---- */
+.odometer {
+  display: inline-flex;
+  align-items: baseline;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums lining-nums;
+}
+.odometer-cell {
+  display: inline-block;
+  height: 1.08em;
+  line-height: 1.08em;
+  overflow: hidden;
+  vertical-align: bottom;
+  position: relative;
+  /* rakam kenarları hafif yumuşasın */
+  mask-image: linear-gradient(to bottom, transparent 0, #000 12%, #000 88%, transparent 100%);
+}
+.odometer-strip {
+  display: flex;
+  flex-direction: column;
+  transition: transform 1.25s cubic-bezier(0.16, 1, 0.3, 1);
+  will-change: transform;
+}
+.odometer-strip > span {
+  height: 1.08em;
+  display: block;
+  text-align: center;
+}
+.odometer-sep {
+  display: inline-block;
+}
+.odometer-symbol {
+  margin-right: 0.04em;
+}
+.odometer-fraction {
+  display: inline-flex;
+  align-items: baseline;
+}
+
+/* ---- Panel: imleci izleyen ışıklı kenar ---- */
+.panel {
+  position: relative;
+  isolation: isolate;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-panel);
+  --mx: 50%;
+  --my: 0%;
+}
+.panel::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  padding: 1px;
+  background: radial-gradient(
+    420px circle at var(--mx) var(--my),
+    color-mix(in oklab, var(--cobalt) 70%, transparent),
+    transparent 42%
+  );
+  -webkit-mask:
+    linear-gradient(#000 0 0) content-box,
+    linear-gradient(#000 0 0);
+  -webkit-mask-composite: xor;
+  mask-composite: exclude;
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  z-index: 1;
+}
+.panel::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background: radial-gradient(
+    600px circle at var(--mx) var(--my),
+    color-mix(in oklab, var(--cobalt) 5%, transparent),
+    transparent 45%
+  );
+  opacity: 0;
+  transition: opacity 0.35s ease;
+  pointer-events: none;
+  z-index: -1;
+}
+@media (hover: hover) and (pointer: fine) {
+  .panel:hover::before,
+  .panel:hover::after {
+    opacity: 1;
+  }
+}
+
+/* ---- Açılış perdeleri (CSS: bitiş durumu tarayıcı tarafından garanti) ---- */
+.reveal-panel {
+  animation: panel-reveal 0.9s cubic-bezier(0.76, 0, 0.24, 1) both;
+  animation-delay: var(--reveal-delay, 0s);
+}
+@keyframes panel-reveal {
+  from {
+    clip-path: inset(0 0 100% 0 round 22px);
+    opacity: 0.35;
+  }
+  to {
+    clip-path: inset(-40px -40px -40px -40px round 22px);
+    opacity: 1;
+  }
+}
+.reveal-rise {
+  display: inline-block;
+  animation: rise 0.95s cubic-bezier(0.16, 1, 0.3, 1) both;
+  animation-delay: var(--reveal-delay, 0s);
+}
+@keyframes rise {
+  from {
+    transform: translateY(105%) rotate(2deg);
+  }
+  to {
+    transform: none;
+  }
+}
+.reveal-fade {
+  animation: fade-up 0.6s cubic-bezier(0.25, 1, 0.5, 1) both;
+  animation-delay: var(--reveal-delay, 0s);
+}
+@keyframes fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---- Kâğıt greni (zemin dokusu) ---- */
+.grain::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.045;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix values='0 0 0 0 0.06 0 0 0 0 0.1 0 0 0 0 0.24 0 0 0 1 0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+}
+:root[data-theme='dark'] .grain::before {
+  opacity: 0.07;
+  mix-blend-mode: screen;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .grain::before {
+    opacity: 0.07;
+    mix-blend-mode: screen;
+  }
+}
+
+/* ---- Gravür iskelet (yükleme) ---- */
+.engrave-skeleton {
+  position: relative;
+  overflow: hidden;
+  border-radius: 10px;
+  background:
+    repeating-linear-gradient(
+      -45deg,
+      color-mix(in oklab, var(--ink) 5%, transparent) 0 1px,
+      transparent 1px 7px
+    ),
+    var(--surface-sunken);
+}
+.engrave-skeleton::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  transform: translateX(-100%);
+  background: linear-gradient(
+    90deg,
+    transparent,
+    color-mix(in oklab, var(--surface) 70%, transparent),
+    transparent
+  );
+  animation: engrave-shimmer 1.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes engrave-shimmer {
+  to {
+    transform: translateX(100%);
+  }
+}
+
+/* ---- Gravür çizgi çizimi ---- */
+.draw-path {
+  stroke-dasharray: var(--len, 2000);
+  stroke-dashoffset: var(--len, 2000);
+  animation: draw-path var(--draw-duration, 1.8s) cubic-bezier(0.65, 0, 0.35, 1) forwards;
+  animation-delay: var(--draw-delay, 0s);
+}
+@keyframes draw-path {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+/* ---- Nabız halkası (uyarı noktası) ---- */
+.pulse-ring {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: pulse-ring 2.2s cubic-bezier(0.2, 0.6, 0.35, 1) infinite;
+}
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.6);
+    opacity: 0.7;
+  }
+  80%,
+  100% {
+    transform: scale(2.6);
+    opacity: 0;
+  }
+}
+
+/* ---- Yavaş dönüş (rozet) ---- */
+.slow-spin {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: slow-spin 180s linear infinite;
+}
+.slow-spin-reverse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: slow-spin 240s linear infinite reverse;
+}
+@keyframes slow-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* ---- Mühür ---- */
+.stamp {
+  animation: stamp-in 0.7s cubic-bezier(0.2, 1.4, 0.4, 1) both;
+}
+@keyframes stamp-in {
+  0% {
+    transform: scale(1.8) rotate(-24deg);
+    opacity: 0;
+    filter: blur(6px);
+  }
+  55% {
+    transform: scale(0.94) rotate(-9deg);
+    opacity: 1;
+    filter: blur(0);
+  }
+  100% {
+    transform: scale(1) rotate(-11deg);
+    opacity: 1;
+  }
+}
+
+/* ---- View Transitions ---- */
+::view-transition-old(root),
+::view-transition-new(root) {
+  animation-duration: 0.42s;
+  animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+::view-transition-old(root) {
+  animation-name: vt-out;
+}
+::view-transition-new(root) {
+  animation-name: vt-in;
+}
+@keyframes vt-out {
+  to {
+    opacity: 0;
+    transform: translateY(-6px) scale(0.995);
+    filter: blur(2px);
+  }
+}
+@keyframes vt-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.995);
+    filter: blur(3px);
+  }
+}
+::view-transition-group(*) {
+  animation-duration: 0.5s;
+  animation-timing-function: cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-group(*),
+  ::view-transition-old(*),
+  ::view-transition-new(*) {
+    animation: none !important;
+  }
+  .draw-path {
+    stroke-dashoffset: 0;
+    animation: none;
+  }
+  .slow-spin,
+  .slow-spin-reverse,
+  .pulse-ring {
+    animation: none;
+  }
+}
+
+} /* @layer components */

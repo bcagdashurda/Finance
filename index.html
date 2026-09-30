@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="tr">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <meta name="description" content="Mizan — işletmenizin nakdini bugünden 13 hafta ileriye kadar gösteren finans kokpiti." />
+    <meta name="theme-color" content="#F3F5F8" media="(prefers-color-scheme: light)" />
+    <meta name="theme-color" content="#0A1024" media="(prefers-color-scheme: dark)" />
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <title>Mizan</title>
+    <script>
+      // Temayı ilk boyamadan önce uygula (FOUC önleme)
+      try {
+        var t = localStorage.getItem('mizan:theme');
+        if (t === 'dark' || t === 'light') document.documentElement.dataset.theme = t;
+      } catch (e) {}
+    </script>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
