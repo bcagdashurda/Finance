@@ -20,3 +20,6 @@ Thumbs.db
 .vscode/*
 !.vscode/extensions.json
 .idea/
+
+# Senaryo testlerinin ekran görüntüleri (yerelde kalır, depoyu şişirmez)
+docs/qa/ekran/
