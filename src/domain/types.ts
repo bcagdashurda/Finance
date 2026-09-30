@@ -65,8 +65,13 @@ export interface Contact extends Base {
   paymentTermDays?: number;
   riskLimit?: Money;
   currency: CurrencyCode;
-  /** Pozitif: bize borçlu (alacağımız var). Negatif: biz borçluyuz. */
+  /** Devir bakiyesi. Pozitif: bize borçlu (alacağımız var). Negatif: biz borçluyuz. */
   openingBalance: Money;
+  /**
+   * Devir bakiyesinin geçerli olduğu gün. Bu tarihten önceki hareketler (ör. sonradan içe aktarılan
+   * eski ekstre) devire zaten dahildir; bakiyeye ikinci kez eklenmez. Yoksa tüm geçmiş sayılır.
+   */
+  openingDate?: ISODate;
   tags: string[];
   notes?: string;
   archived: boolean;

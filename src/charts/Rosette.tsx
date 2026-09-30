@@ -59,7 +59,7 @@ export function Rosette({ months, size = 380, centerLabel, centerValue, delay = 
             samples: 420,
           }),
         );
-        return { m, i, radius, strands, positive: m.net >= 0 };
+        return { m, i, radius, strands, positive: m.net >= 0, empty: !m.inflow && !m.outflow };
       }),
     [months, inner, gap, maxNet, c],
   );
@@ -101,7 +101,7 @@ export function Rosette({ months, size = 380, centerLabel, centerValue, delay = 
         </g>
 
         <g className="slow-spin">
-          {rings.map(({ i, strands, positive }) => {
+          {rings.map(({ i, strands, positive, empty }) => {
             const dim = hover != null && hover !== i;
             return (
               <g key={i} style={{ transition: 'opacity .35s ease' }} opacity={dim ? 0.18 : 1}>
@@ -111,8 +111,8 @@ export function Rosette({ months, size = 380, centerLabel, centerValue, delay = 
                     d={d}
                     fill="none"
                     pathLength={1}
-                    stroke={j === 0 ? (positive ? 'var(--inflow)' : 'var(--outflow)') : 'var(--cobalt)'}
-                    strokeOpacity={j === 0 ? 0.85 : 0.38}
+                    stroke={j === 0 ? (empty ? 'var(--line-strong)' : positive ? 'var(--inflow)' : 'var(--outflow)') : 'var(--cobalt)'}
+                    strokeOpacity={empty ? (j === 0 ? 0.6 : 0.16) : j === 0 ? 0.85 : 0.38}
                     strokeWidth={j === 0 ? 0.9 : 0.55}
                     className="draw-path"
                     style={{ '--len': 1, '--draw-delay': `${delay + 0.15 + i * 0.07 + j * 0.05}s`, '--draw-duration': '1.9s' } as React.CSSProperties}

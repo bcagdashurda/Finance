@@ -4,6 +4,7 @@ import { Command } from 'cmdk';
 import { CaretUpDown, Check, Plus } from '@phosphor-icons/react';
 import { AnimatePresence, motion } from 'motion/react';
 import { cn } from './cn';
+import { searchScore } from '@/domain/search';
 
 export interface ComboOption {
   value: string;
@@ -76,7 +77,13 @@ export function Combobox({
                 transition={{ duration: 0.16, ease: [0.25, 1, 0.5, 1] }}
                 className="z-[70] w-[var(--radix-popover-trigger-width)] min-w-64 overflow-hidden rounded-[14px] border border-line bg-surface shadow-[var(--float-shadow)]"
               >
-                <Command loop>
+                <Command
+                  loop
+                  // Değerin \u0001 sonrası (kimlik) aramaya katılmaz; "oluştur" satırı her zaman en altta
+                  filter={(value, search, keywords) =>
+                    value.startsWith('__create__') ? 0.01 : value === '__clear__' ? (search ? 0 : 1) : searchScore(value.split('\u0001')[0]!, search, keywords)
+                  }
+                >
                   <Command.Input
                     value={query}
                     onValueChange={setQuery}
@@ -108,7 +115,7 @@ export function Combobox({
                           .map((o) => (
                             <Command.Item
                               key={o.value}
-                              value={`${o.label} ${o.value}`}
+                              value={`${o.label}\u0001${o.value}`}
                               keywords={o.keywords}
                               onSelect={() => {
                                 onChange(o.value);

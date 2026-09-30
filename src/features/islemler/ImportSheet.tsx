@@ -23,34 +23,16 @@ import {
   type Suggestion,
 } from '@/domain/statement';
 import { planAllocation } from '@/domain/documents';
-import { normalizeTr } from '@/domain/nlp';
 import type { ID } from '@/domain/types';
 import { importTransactions, learnRule, type ImportRow } from '@/data/repo';
 import { useAi } from '@/ai/useAi';
+import { findHeaderRow, readSpreadsheet } from '@/data/spreadsheet';
 
-async function readFile(file: File): Promise<Cell[][]> {
-  if (/\.xlsx?$/i.test(file.name)) {
-    const XLSX = await import('xlsx');
-    const wb = XLSX.read(await file.arrayBuffer(), { type: 'array' });
-    const ws = wb.Sheets[wb.SheetNames[0]!]!;
-    return XLSX.utils.sheet_to_json<Cell[]>(ws, { header: 1, raw: true, defval: '' });
-  }
-  const buf = await file.arrayBuffer();
-  let text = new TextDecoder('utf-8').decode(buf);
-  // Türk bankalarının eski CSV'leri Windows-1254 olabilir
-  if (text.includes('�')) text = new TextDecoder('windows-1254').decode(buf);
-  const Papa = (await import('papaparse')).default;
-  return Papa.parse<string[]>(text, { skipEmptyLines: true }).data;
-}
+const readFile = readSpreadsheet;
 
 /** Başlık satırını bul: bankalar üstte birkaç başlık satırı koyar. */
-function findHeader(rows: Cell[][]): number {
-  for (let i = 0; i < Math.min(25, rows.length); i++) {
-    const cells = rows[i]!.map((c) => normalizeTr(String(c ?? '')));
-    if (cells.some((c) => c.includes('tarih')) && cells.some((c) => /tutar|borc|alacak|miktar/.test(c))) return i;
-  }
-  return 0;
-}
+const findHeader = (rows: Cell[][]) =>
+  findHeaderRow(rows, (cells) => cells.some((c) => c.includes('tarih')) && cells.some((c) => /tutar|borc|alacak|miktar/.test(c)));
 
 interface ReviewRow extends StatementItem {
   include: boolean;
@@ -139,9 +121,11 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
         const inflow = r.amount > 0;
         const amount = Math.abs(r.amount);
         let allocations: ImportRow['allocations'] = [];
-        if (r.contactId) {
+        const contact = r.contactId ? f.contactsById.get(r.contactId) : undefined;
+        // Devirden önceki ödeme devire zaten dahil: faturaya dağıtılmaz. Ödeme, kendisinden sonra kesilen faturayı kapatamaz.
+        if (r.contactId && !(contact?.openingDate && r.date < contact.openingDate)) {
           const open = f.documents
-            .filter((d) => d.contactId === r.contactId && d.direction === (inflow ? 'receivable' : 'payable') && d.currency === account.currency && !d.cancelled)
+            .filter((d) => d.contactId === r.contactId && d.direction === (inflow ? 'receivable' : 'payable') && d.currency === account.currency && !d.cancelled && d.issueDate <= r.date)
             .map((d) => ({ id: d.id, dueDate: d.dueDate, remaining: remaining.get(d.id) ?? 0 }))
             .filter((d) => d.remaining > 0);
           allocations = planAllocation(amount, open).allocations;
@@ -329,6 +313,8 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
 
   // ---- 3. Kontrol
   const included = review.filter((r) => r.include);
+  const target = f.accountsById.get(accountId);
+  const beforeOpening = target ? included.filter((r) => r.date < target.openingDate).length : 0;
   const dupCount = review.filter((r) => r.duplicate).length;
   const unmatched = included.filter((r) => !r.categoryId && !r.contactId).length;
   const update = (row: number, patch: Partial<ReviewRow>) => setReview((list) => list!.map((r) => (r.row === row ? { ...r, ...patch } : r)));
@@ -371,6 +357,15 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
           </span>
         </Tip>
       </div>
+      {beforeOpening > 0 && target && (
+        <p className="flex items-start gap-2 rounded-[12px] bg-cobalt-soft/60 px-3 py-2 text-xs text-cobalt-ink">
+          <WarningCircle size={14} className="mt-0.5 shrink-0" />
+          <span>
+            {beforeOpening} satır, “{target.name}” hesabının başlangıç tarihinden ({formatDateShort(target.openingDate)}) önce. Raporlarda ve geçmişte görünür;
+            başlangıç bakiyesine zaten dahil olduğu için bugünkü bakiyeyi değiştirmez.
+          </span>
+        </p>
+      )}
       <div className="rounded-[16px] border border-line">
         <ul className="scrollbar-thin max-h-[55vh] divide-y divide-line overflow-y-auto">
           {review.map((r) => (
@@ -417,7 +412,7 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
           ))}
         </ul>
       </div>
-      <div className="sticky bottom-0 -mx-6 -mb-5 flex items-center justify-between gap-3 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
+      <div className="sticky -bottom-5 -mx-6 -mb-5 flex items-center justify-between gap-3 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
         <Button variant="ghost" onClick={() => setReview(null)}>
           Geri
         </Button>

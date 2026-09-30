@@ -151,7 +151,7 @@ function InstrumentForm({ direction, onDone }: { direction: InstrumentDirection;
           <Toggle checked={allocate} onCheckedChange={setAllocate} label="Dağıt" />
         </label>
       )}
-      <div className="sticky bottom-0 -mx-6 -mb-5 flex justify-end gap-2 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
+      <div className="sticky -bottom-5 -mx-6 -mb-5 flex justify-end gap-2 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
         <Button variant="ghost" type="button" onClick={onDone}>
           Vazgeç
         </Button>

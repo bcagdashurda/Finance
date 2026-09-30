@@ -125,10 +125,31 @@ export function buildInsights(f: Finance): Insight[] {
     });
   }
 
-  // Yedek hatırlatması: veriler yalnızca bu tarayıcıda
+  // Vadesiz devir bakiyeleri projeksiyona girmez: kullanıcı bunu bilmeli
+  let devirIn = 0;
+  let devirOut = 0;
+  for (const c of f.contacts) {
+    if (c.archived || !c.openingBalance) continue;
+    const v = amountInBase(c.openingBalance, f.rates[c.currency]);
+    if (v > 0) devirIn += v;
+    else devirOut += -v;
+  }
+  if (devirIn + devirOut > 0) {
+    const parts = [devirIn ? `${formatShort(devirIn)} alacak` : '', devirOut ? `${formatShort(devirOut)} borç` : ''].filter(Boolean).join(' ve ');
+    out.push({
+      id: 'devir',
+      tone: 'info',
+      title: `${parts} vadesiz devir bakiyesi olarak duruyor`,
+      body: 'Vadesi belli olmadığı için 13 haftalık projeksiyona dahil edilmedi. Ne zaman ödeneceğini biliyorsanız fatura olarak girin; projeksiyon isabetlenir.',
+      action: { label: 'Carilere git', to: '/cariler' },
+    });
+  }
+
+  // Yedek hatırlatması: veriler yalnızca bu tarayıcıda (bulut eşitlemesi açıksa gereksiz)
   const last = f.settings.lastBackupAt ? f.settings.lastBackupAt.slice(0, 10) : null;
   const stale = !last || addDays(last, 7) < f.today;
-  if (stale && !f.settings.isDemo) {
+  const synced = Boolean(f.settings.cloud?.linked.includes(f.workspace.id));
+  if (stale && !f.settings.isDemo && !synced) {
     out.push({
       id: 'backup',
       tone: 'warn',

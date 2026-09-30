@@ -57,6 +57,42 @@ function hash(s: string): string {
   return (h >>> 0).toString(36) + s.length.toString(36);
 }
 
+// ---- Kullanım: Groq limit başlıkları (x-ratelimit-*) — Ayarlar'da gösterilir
+export interface AiUsage {
+  remainingRequests: number | null;
+  limitRequests: number | null;
+  remainingTokens: number | null;
+  at: string;
+}
+let usage: AiUsage | null = null;
+const usageListeners = new Set<(u: AiUsage) => void>();
+
+function readUsage(res: Response) {
+  const n = (h: string) => {
+    const v = res.headers.get(h);
+    return v === null || v === '' ? null : Number(v);
+  };
+  const limitRequests = n('x-ratelimit-limit-requests');
+  if (limitRequests === null) return;
+  usage = { limitRequests, remainingRequests: n('x-ratelimit-remaining-requests'), remainingTokens: n('x-ratelimit-remaining-tokens'), at: new Date().toISOString() };
+  usageListeners.forEach((l) => l(usage!));
+}
+
+export function getAiUsage(): AiUsage | null {
+  return usage;
+}
+
+export function onAiUsage(listener: (u: AiUsage) => void): () => void {
+  usageListeners.add(listener);
+  return () => usageListeners.delete(listener);
+}
+
+/** Hesapta kullanılabilir modellerden tercih sırasına göre seçim (model kaldırılırsa kırılmasın). */
+export function pickModel(available: string[], preferred: string[], fallbackPattern: RegExp): string | null {
+  for (const p of preferred) if (available.includes(p)) return p;
+  return available.find((m) => fallbackPattern.test(m)) ?? null;
+}
+
 export interface ChatOptions {
   model?: string;
   messages: ChatMessage[];
@@ -102,8 +138,12 @@ export async function chat(config: AiConfig, opts: ChatOptions): Promise<ChatRes
   if (opts.jsonSchema) {
     body.response_format = { type: 'json_schema', json_schema: { name: opts.jsonSchema.name, strict: true, schema: opts.jsonSchema.schema } };
   }
-  // gpt-oss akıl yürütme modelleri: kısa düşünme → daha az token (ücretsiz katman TPM'i dar)
-  if (config.provider === 'groq' && model.startsWith('openai/gpt-oss')) body.reasoning_effort = 'low';
+  // gpt-oss akıl yürütme modelleri: kısa düşünme → daha az token (ücretsiz katman TPM'i dar);
+  // iç düşünme metni yanıtta taşınmaz.
+  if (config.provider !== 'openai-compatible' && model.startsWith('openai/gpt-oss')) {
+    body.reasoning_effort = 'low';
+    body.include_reasoning = false;
+  }
 
   const cacheKey = opts.cache ? hash(JSON.stringify(body)) : null;
   if (cacheKey) {
@@ -134,6 +174,7 @@ export async function chat(config: AiConfig, opts: ChatOptions): Promise<ChatRes
       }
       throw new AiError('rate', `Ücretsiz kullanım limiti doldu. Yaklaşık ${Math.ceil(retry / 60)} dakika sonra tekrar deneyin.`, retry);
     }
+    readUsage(res);
     if (!res.ok) throw friendly(res.status, await res.text());
     const json = await res.json();
     const result: ChatResult = { message: json.choices?.[0]?.message ?? { role: 'assistant', content: '' }, usage: json.usage };
@@ -186,6 +227,7 @@ export async function transcribe(config: AiConfig, audio: Blob): Promise<string>
   } catch {
     throw new AiError('network', 'Ses servisine ulaşılamadı.');
   }
+  readUsage(res);
   if (!res.ok) throw friendly(res.status, await res.text());
   const json = await res.json();
   return String(json.text ?? '').trim();

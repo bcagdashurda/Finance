@@ -5,7 +5,8 @@ import { cn } from './cn';
 interface SegmentedProps<T extends string> {
   value: T;
   onChange: (value: T) => void;
-  options: Array<{ value: T; label: ReactNode; title?: string }>;
+  /** divider: bu seçenekten önce ince bir ayraç (ör. nakit hareketleri | vadeli belgeler) */
+  options: Array<{ value: T; label: ReactNode; title?: string; divider?: boolean }>;
   size?: 'sm' | 'md';
   className?: string;
   label: string;
@@ -22,7 +23,8 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
     >
       {options.map((o) => {
         const active = o.value === value;
-        return (
+        return [
+          o.divider && <span key={`${o.value}-divider`} aria-hidden className="mx-1 h-4 w-px shrink-0 bg-line-strong" />,
           <button
             key={o.value}
             type="button"
@@ -44,8 +46,8 @@ export function Segmented<T extends string>({ value, onChange, options, size = '
               />
             )}
             {o.label}
-          </button>
-        );
+          </button>,
+        ];
       })}
     </div>
   );

@@ -205,7 +205,7 @@ function RecurringForm({ rule, onDone }: { rule: RecurringRule | null; onDone: (
         </span>
         <Toggle checked={s.autoPost} onCheckedChange={(autoPost) => set({ autoPost })} label="Otomatik ödeniyor" />
       </label>
-      <div className="sticky bottom-0 -mx-6 -mb-5 flex justify-between gap-2 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
+      <div className="sticky -bottom-5 -mx-6 -mb-5 flex justify-between gap-2 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
         {rule ? (
           <Button
             type="button"

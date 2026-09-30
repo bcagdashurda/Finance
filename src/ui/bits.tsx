@@ -2,6 +2,10 @@ import type { ReactNode } from 'react';
 import { Tooltip as RTooltip, Switch as RSwitch } from 'radix-ui';
 import { cn } from './cn';
 
+/** Kısayol değiştirici tuşu: Mac'te ⌘, diğerlerinde Ctrl */
+export const MOD_KEY =
+  typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || navigator.userAgent) ? '⌘' : 'Ctrl';
+
 type Tone = 'neutral' | 'in' | 'out' | 'warn' | 'cobalt' | 'muted';
 
 const TONES: Record<Tone, string> = {
@@ -26,7 +30,7 @@ export function Kbd({ children, className }: { children: ReactNode; className?: 
   return (
     <kbd
       className={cn(
-        'inline-flex h-5 min-w-5 items-center justify-center rounded-[6px] border border-line-strong bg-surface px-1 text-[0.6875rem] font-medium text-muted',
+        'inline-flex h-5 min-w-5 items-center justify-center whitespace-nowrap rounded-[6px] border border-line-strong bg-surface px-1.5 align-middle font-sans text-[0.6875rem] font-medium text-muted',
         className,
       )}
     >

@@ -19,7 +19,7 @@ import { occurrences } from '@/domain/recurrence';
 import { amountInBase } from '@/domain/balances';
 import { formatShort } from '@/domain/money';
 import type { RecurringRule } from '@/domain/types';
-import { postRecurringOccurrence, transitionInstrument, updateDocument } from '@/data/repo';
+import { postRecurringOccurrence, transitionInstrument, updateDocument, updateTransaction } from '@/data/repo';
 import { RecurringSheet } from './RecurringSheet';
 import { FREQUENCY_LABEL } from '@/features/akis/scenario-ui';
 
@@ -102,6 +102,11 @@ export default function TakvimPage() {
       await transitionInstrument(ins, { status: ins.direction === 'received' ? 'collected' : 'paid', date: f.today, accountId });
       setStamp({ label: ins.direction === 'received' ? 'TAHSİL EDİLDİ' : 'ÖDENDİ', tone: ins.direction === 'received' ? 'in' : 'out' });
       window.setTimeout(() => setStamp(null), 1300);
+    } else if (it.source === 'planned' && it.refId) {
+      // İleri tarihli işlem bugün gerçekleşti: tarihini bugüne çek, bakiyeye girsin
+      await updateTransaction(it.refId, { date: f.today });
+      setStamp({ label: it.direction === 'in' ? 'TAHSİL EDİLDİ' : 'ÖDENDİ', tone: it.direction === 'in' ? 'in' : 'out' });
+      window.setTimeout(() => setStamp(null), 1300);
     } else {
       toast('Tahmini kalem; gerçekleştiğinde işlem olarak girin.');
     }
@@ -138,30 +143,34 @@ export default function TakvimPage() {
           <PanelHeader title="Bekleyenler" description="Vadesi geçmiş belgeler ve henüz işaretlenmemiş düzenli ödemeler" />
           <div className="grid gap-2 lg:grid-cols-2">
             {unposted.slice(0, 6).map(({ r, o }) => (
-              <div key={`${r.id}:${o.nominal}`} className="flex items-center gap-3 rounded-[14px] border border-saffron/40 bg-saffron-soft/50 px-4 py-2.5">
-                <ClockCountdown size={18} className="text-saffron-text" />
-                <div className="min-w-0 flex-1 text-sm">
+              <div key={`${r.id}:${o.nominal}`} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[14px] border border-saffron/40 bg-saffron-soft/50 px-4 py-2.5">
+                <ClockCountdown size={18} className="shrink-0 text-saffron-text" />
+                <div className="min-w-0 flex-1 basis-36 text-sm">
                   <div className="truncate font-medium">{r.title}</div>
                   <div className="text-2xs text-muted">{formatDayMonthLong(o.date)} · işaretlenmedi</div>
                 </div>
-                <Money value={r.direction === 'in' ? r.amount : -r.amount} currency={r.currency} tone="auto" decimals={0} className="text-sm font-semibold" />
-                <Button size="sm" variant="secondary" onClick={() => void postRecurringOccurrence(r, o).then(() => toast.success('İşaretlendi'))}>
-                  {r.direction === 'in' ? 'Tahsil edildi' : 'Ödendi'}
-                </Button>
+                <div className="ml-auto flex items-center gap-3">
+                  <Money value={r.direction === 'in' ? r.amount : -r.amount} currency={r.currency} tone="auto" decimals={0} className="text-sm font-semibold" />
+                  <Button size="sm" variant="secondary" onClick={() => void postRecurringOccurrence(r, o).then(() => toast.success('İşaretlendi'))}>
+                    {r.direction === 'in' ? 'Tahsil edildi' : 'Ödendi'}
+                  </Button>
+                </div>
               </div>
             ))}
             {overdueDocs.slice(0, 8).map(({ d, st }) => (
-              <div key={d.id} className="flex items-center gap-3 rounded-[14px] border border-outflow/25 bg-outflow-soft/40 px-4 py-2.5">
-                <div className="min-w-0 flex-1 text-sm">
+              <div key={d.id} className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2 rounded-[14px] border border-outflow/25 bg-outflow-soft/40 px-4 py-2.5">
+                <div className="min-w-0 flex-1 basis-36 text-sm">
                   <div className="truncate font-medium">{contactName(d.contactId) ?? d.title}</div>
                   <div className="text-2xs text-muted">
                     {d.number ?? d.title} · {st.daysOverdue} gün gecikmiş
                   </div>
                 </div>
-                <Money value={d.direction === 'receivable' ? st.remaining : -st.remaining} currency={d.currency} tone="auto" decimals={0} className="text-sm font-semibold" />
-                <Button size="sm" variant="secondary" onClick={() => openEntry({ kind: d.direction === 'receivable' ? 'collect' : 'pay', contactId: d.contactId, amount: st.remaining, currency: d.currency })}>
-                  {d.direction === 'receivable' ? 'Tahsil et' : 'Öde'}
-                </Button>
+                <div className="ml-auto flex items-center gap-3">
+                  <Money value={d.direction === 'receivable' ? st.remaining : -st.remaining} currency={d.currency} tone="auto" decimals={0} className="text-sm font-semibold" />
+                  <Button size="sm" variant="secondary" onClick={() => openEntry({ kind: d.direction === 'receivable' ? 'collect' : 'pay', contactId: d.contactId, amount: st.remaining, currency: d.currency })}>
+                    {d.direction === 'receivable' ? 'Tahsil et' : 'Öde'}
+                  </Button>
+                </div>
               </div>
             ))}
           </div>
@@ -275,7 +284,7 @@ export default function TakvimPage() {
                     <Money value={it.direction === 'in' ? it.expectedAmount : -it.expectedAmount} tone="auto" sign="always" decimals={0} className="text-sm font-semibold" />
                   </div>
                   <div className="mt-2 flex flex-wrap items-center gap-1.5">
-                    <Badge tone="muted">{it.source === 'document' ? (it.direction === 'in' ? 'Alacak' : 'Borç') : it.source === 'recurring' ? 'Tekrarlayan' : it.source === 'instrument' ? 'Çek/senet' : it.source === 'vat' ? 'KDV tahmini' : 'Senaryo'}</Badge>
+                    <Badge tone="muted">{it.source === 'document' ? (it.direction === 'in' ? 'Alacak' : 'Borç') : it.source === 'recurring' ? 'Tekrarlayan' : it.source === 'instrument' ? 'Çek/senet' : it.source === 'vat' ? 'KDV tahmini' : it.source === 'planned' ? 'Planlı işlem' : 'Senaryo'}</Badge>
                     {it.expected !== it.dueDate && <Badge tone="warn">vade {formatDayMonth(it.dueDate)}</Badge>}
                     <span className="ml-auto flex gap-1">
                       {it.source === 'document' && (

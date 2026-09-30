@@ -138,7 +138,7 @@ function ScenarioEditor({ scenario, horizon, onDone }: { scenario: Scenario | nu
         )}
       </div>
 
-      <div className="sticky bottom-0 -mx-6 -mb-5 flex justify-end gap-2 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
+      <div className="sticky -bottom-5 -mx-6 -mb-5 flex justify-end gap-2 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
         <Button variant="ghost" onClick={onDone}>
           Vazgeç
         </Button>

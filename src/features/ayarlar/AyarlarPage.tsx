@@ -15,7 +15,13 @@ import {
   Plus,
   ArrowsClockwise,
   Keyboard,
+  Cloud,
+  Copy,
 } from '@phosphor-icons/react';
+import { CloudSection } from './CloudSection';
+import aiProxySource from '../../../supabase/functions/ai-proxy/index.ts?raw';
+import { useAi } from '@/ai/useAi';
+import { envCloudConfig, useCloud } from '@/cloud/store';
 import { useFinance } from '@/app/finance';
 import { useUI, type ThemePref } from '@/app/ui-store';
 import { PageHeader } from '@/ui/PageHeader';
@@ -23,20 +29,20 @@ import { Panel, PanelHeader } from '@/ui/Panel';
 import { Button } from '@/ui/Button';
 import { Field, MoneyInput, Select, TextInput } from '@/ui/Field';
 import { Segmented } from '@/ui/Segmented';
-import { Badge, Kbd, Toggle } from '@/ui/bits';
+import { Badge, Kbd, MOD_KEY, Toggle } from '@/ui/bits';
 import { Modal } from '@/ui/Overlay';
 import { Money } from '@/ui/Money';
 import { CategoryIcon, CATEGORY_ICON_KEYS } from '@/ui/icons';
 import { cn, slotColor } from '@/ui/cn';
 import { formatDate } from '@/ui/format';
-import { listModels } from '@/ai/client';
+import { getAiUsage, listModels, onAiUsage, pickModel, type AiUsage } from '@/ai/client';
 import { listGeminiModels } from '@/ai/gemini';
 import { saveAiConfig } from '@/ai/useAi';
 import { GROQ_BASE, type AiConfig } from '@/ai/config';
 import { isValidTaxId } from '@/domain/validators';
 import { diffDays, toISODate } from '@/domain/dates';
 import type { Category } from '@/domain/types';
-import { createCategory, setSetting, updateCategory, updateWorkspace } from '@/data/repo';
+import { createCategory, setSetting, setWorkspaceSetting, updateCategory, updateWorkspace } from '@/data/repo';
 import { SETTINGS_KEYS, loadDemo, wipeEverything } from '@/data/load';
 import { exportBackup, restoreBackup, validateBackup } from '@/data/backup';
 import { fetchLatestRates, setManualRate } from '@/data/rates';
@@ -46,6 +52,7 @@ import { hashPin, newSalt } from '@/app/lock';
 const SECTIONS = [
   { id: 'isletme', label: 'İşletme', icon: Buildings },
   { id: 'yapay-zeka', label: 'Yapay zekâ', icon: Sparkle },
+  { id: 'bulut', label: 'Bulut senkronu', icon: Cloud },
   { id: 'kategoriler', label: 'Kategoriler ve bütçe', icon: Tag },
   { id: 'kurlar', label: 'Döviz kurları', icon: CurrencyCircleDollar },
   { id: 'guvenlik', label: 'Güvenlik', icon: LockSimple },
@@ -74,6 +81,7 @@ export default function AyarlarPage() {
         <div className="min-w-0 space-y-5">
           <BusinessSection />
           <AiSection />
+          <CloudSection index={2} />
           <CategoriesSection />
           <RatesSection />
           <SecuritySection />
@@ -120,7 +128,7 @@ function BusinessSection() {
           Tempo tahmini
           <span className="block text-2xs text-muted">Son 3 ayın satış/alış temposuyla henüz kesilmemiş faturaları ve rutin giderleri projeksiyona ekler.</span>
         </span>
-        <Toggle checked={f.settings.tempo} onCheckedChange={(v) => void setSetting(SETTINGS_KEYS.tempo, v)} label="Tempo tahmini" />
+        <Toggle checked={f.settings.tempo} onCheckedChange={(v) => void setWorkspaceSetting(SETTINGS_KEYS.tempo, v)} label="Tempo tahmini" />
       </label>
       <div className="mt-4 flex justify-end">
         <Button
@@ -128,7 +136,7 @@ function BusinessSection() {
           disabled={!dirty || Boolean(taxId && !isValidTaxId(taxId))}
           onClick={async () => {
             await updateWorkspace(f.workspace.id, { name: name.trim() || f.workspace.name, legalName: legalName || undefined, taxId: taxId || undefined });
-            await setSetting(SETTINGS_KEYS.minCashBalance, minCash ?? 0);
+            await setWorkspaceSetting(SETTINGS_KEYS.minCashBalance, minCash ?? 0);
             toast.success('İşletme bilgileri kaydedildi');
           }}
         >
@@ -158,7 +166,15 @@ function AiSection() {
     try {
       const list = await listModels({ apiKey: key.trim(), baseUrl });
       setModels(list);
-      await save({ apiKey: key.trim(), baseUrl });
+      // Varsayılan modeller hesapta yoksa (Groq model kaldırırsa) en uygununu seç
+      const keep = (current: string, preferred: string[], pattern: RegExp) => (list.includes(current) ? current : (pickModel(list, preferred, pattern) ?? current));
+      await save({
+        apiKey: key.trim(),
+        baseUrl,
+        model: keep(cfg.model, ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'], /gpt|qwen|llama|kimi|mistral|gemma/i),
+        fastModel: keep(cfg.fastModel, ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b'], /gpt|qwen|llama|gemma/i),
+        sttModel: keep(cfg.sttModel, ['whisper-large-v3-turbo', 'whisper-large-v3'], /whisper/i),
+      });
       toast.success('Bağlantı başarılı', { description: `${list.length} model kullanılabilir.` });
       if (!cfg.consentAt) setConsentOpen(true);
     } catch (e) {
@@ -169,7 +185,30 @@ function AiSection() {
   }
 
   const chatModels = models.filter((m) => !/whisper|tts|guard|orpheus|playai/i.test(m));
-  const ready = cfg.enabled && cfg.apiKey && cfg.consentAt;
+  const ai = useAi();
+  const ready = ai.enabled;
+  const isCloud = cfg.provider === 'cloud';
+  const cloudSession = useCloud((s) => s.session);
+  const cloudUrl = f.settings.cloud?.url || envCloudConfig()?.url || '';
+
+  async function testCloud() {
+    if (!cloudSession || !cloudUrl) {
+      toast('Önce “Bulut senkronu” bölümünden giriş yapın');
+      return;
+    }
+    setTesting(true);
+    try {
+      const list = await listModels({ apiKey: cloudSession.access_token, baseUrl: `${cloudUrl}/functions/v1/ai-proxy` });
+      setModels(list);
+      toast.success('Bulut yapay zekâsı çalışıyor', { description: `${list.length} model kullanılabilir.` });
+      if (!cfg.consentAt) setConsentOpen(true);
+      else await save({ enabled: true });
+    } catch (e) {
+      toast.error('Bulut fonksiyonuna ulaşılamadı', { description: e instanceof Error ? e.message : String(e) });
+    } finally {
+      setTesting(false);
+    }
+  }
 
   return (
     <Section
@@ -183,6 +222,57 @@ function AiSection() {
         </span>
       }
     >
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <Segmented
+          label="Anahtar kaynağı"
+          value={isCloud ? 'cloud' : 'device'}
+          onChange={(v) => void save({ provider: v === 'cloud' ? 'cloud' : baseUrl.includes('groq.com') ? 'groq' : 'openai-compatible' })}
+          options={[
+            { value: 'device', label: 'Anahtar bu cihazda' },
+            { value: 'cloud', label: 'Anahtar bulut sunucusunda' },
+          ]}
+        />
+        <span className="text-2xs text-muted">{isCloud ? 'Ekip ve yayındaki site için önerilir: anahtar tarayıcıya hiç inmez.' : 'En basit yol: anahtarı yapıştırın, bu cihazda çalışır.'}</span>
+      </div>
+
+      {isCloud ? (
+        <div className="space-y-4">
+          <ol className="space-y-3 rounded-[16px] bg-sunken p-4 text-sm text-ink-2">
+            <li>
+              <strong>1.</strong> Bulut senkronu bölümünden Supabase’e bağlanıp giriş yapın{cloudSession ? <Badge tone="in" className="ml-2">Tamam</Badge> : null}.
+            </li>
+            <li className="space-y-2">
+              <span className="block">
+                <strong>2.</strong> Supabase panelinde <strong>Edge Functions › Deploy a new function › Via Editor</strong> açın, adını <code className="rounded bg-surface px-1">ai-proxy</code> yapın, kodu yapıştırıp <strong>Deploy</strong> deyin.
+              </span>
+              <Button
+                size="sm"
+                variant="secondary"
+                icon={<Copy size={14} />}
+                onClick={async () => {
+                  await navigator.clipboard.writeText(aiProxySource);
+                  toast.success('Fonksiyon kodu kopyalandı');
+                }}
+              >
+                Fonksiyon kodunu kopyala
+              </Button>
+            </li>
+            <li>
+              <strong>3.</strong> <strong>Edge Functions › Secrets</strong> sayfasında <code className="rounded bg-surface px-1">GROQ_API_KEY</code> adıyla Groq anahtarınızı ekleyin (
+              <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-cobalt-ink underline">
+                anahtar al
+              </a>
+              ).
+            </li>
+          </ol>
+          <div className="flex justify-end">
+            <Button variant="primary" loading={testing} onClick={testCloud} disabled={!cloudSession}>
+              Bulut bağlantısını test et
+            </Button>
+          </div>
+        </div>
+      ) : (
+      <>
       <div className="rounded-[16px] bg-sunken p-4 text-sm text-ink-2">
         <div className="font-medium text-ink">Ücretsiz Groq anahtarı nasıl alınır?</div>
         <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-muted">
@@ -205,9 +295,13 @@ function AiSection() {
           Bağlantıyı test et
         </Button>
       </div>
+      </>
+      )}
 
-      {cfg.apiKey && (
+      {(cfg.apiKey || isCloud) && (
         <div className="mt-5 space-y-4">
+          {cfg.consentAt === 'env' && <p className="text-2xs text-muted">Anahtar .env dosyasından (VITE_GROQ_API_KEY) okunuyor.</p>}
+          <UsageMeter />
           <label className="flex items-center justify-between gap-3 rounded-[14px] border border-line px-4 py-3 text-sm">
             <span>
               Yapay zekâ özelliklerini kullan
@@ -345,6 +439,29 @@ function AiSection() {
         </ul>
       </Modal>
     </Section>
+  );
+}
+
+/** Groq limit başlıklarından: bugün kalan istek. */
+function UsageMeter() {
+  const [u, setU] = useState<AiUsage | null>(getAiUsage);
+  useEffect(() => onAiUsage(setU), []);
+  if (!u || u.limitRequests == null || u.remainingRequests == null) {
+    return <p className="text-2xs text-muted">Ücretsiz katman: günde yaklaşık 1.000 istek. İlk kullanımdan sonra kalan hakkınız burada görünür.</p>;
+  }
+  const ratio = u.remainingRequests / u.limitRequests;
+  return (
+    <div className="rounded-[14px] border border-line px-4 py-3 text-sm">
+      <div className="flex items-center justify-between text-xs">
+        <span className="text-muted">Bugün kalan istek</span>
+        <span className="num font-medium">
+          {u.remainingRequests.toLocaleString('tr-TR')} / {u.limitRequests.toLocaleString('tr-TR')}
+        </span>
+      </div>
+      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sunken">
+        <div className={cn('h-full rounded-full', ratio < 0.15 ? 'bg-outflow' : 'bg-cobalt')} style={{ width: `${Math.max(2, ratio * 100)}%` }} />
+      </div>
+    </div>
   );
 }
 
@@ -715,9 +832,9 @@ function DataCard({ title, body, action, danger }: { title: string; body: string
 function AppearanceSection() {
   const { theme, setTheme } = useUI();
   const shortcuts: Array<[string[], string]> = [
-    [['⌘', 'K'], 'Arama ve komut paleti (yazarak kayıt)'],
+    [[MOD_KEY, 'K'], 'Arama ve komut paleti (yazarak kayıt)'],
     [['N'], 'Yeni kayıt'],
-    [['⌘', 'J'], 'Asistan'],
+    [[MOD_KEY, 'J'], 'Asistan'],
     [['G', 'K'], 'Kokpit'],
     [['G', 'A'], 'Nakit akışı'],
     [['G', 'T'], 'Ödeme takvimi'],

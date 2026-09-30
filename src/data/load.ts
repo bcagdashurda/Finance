@@ -5,15 +5,9 @@ import { createWorkspace, newId, nowStamp, requireWorkspace, setActiveWorkspace,
 import { today } from '@/domain/dates';
 import type { Category, ID, Workspace } from '@/domain/types';
 
-export const SETTINGS_KEYS = {
-  activeWorkspace: 'activeWorkspaceId',
-  minCashBalance: 'minCashBalance',
-  demo: 'isDemo',
-  tempo: 'forecastTempo',
-  ai: 'ai',
-  lock: 'appLock',
-  lastBackup: 'lastBackupAt',
-} as const;
+import { SETTINGS_KEYS } from './keys';
+
+export { SETTINGS_KEYS };
 
 /** Demo işletmeyi yükler ve etkin çalışma alanı yapar. */
 export async function loadDemo(): Promise<ID> {
@@ -36,7 +30,9 @@ export async function loadDemo(): Promise<ID> {
       await db.recurring.bulkPut(data.recurring);
       await db.instruments.bulkPut(data.instruments);
       await db.scenarios.bulkPut(data.scenarios);
-      await db.rates.bulkPut(data.rates);
+      // Demo kurları gerçek (ECB) kurların üzerine yazmasın: yalnızca eksik günleri doldur
+      const existing = new Set(await db.rates.toCollection().primaryKeys());
+      await db.rates.bulkPut(data.rates.filter((r) => !existing.has(r.id)));
       await db.settings.put({ key: SETTINGS_KEYS.minCashBalance, value: data.settings.minCashBalance });
       await db.settings.put({ key: SETTINGS_KEYS.demo, value: true });
       await db.settings.put({ key: SETTINGS_KEYS.activeWorkspace, value: data.workspace.id });
@@ -79,6 +75,25 @@ export async function setupWorkspace(input: SetupInput): Promise<Workspace> {
   await setSetting(SETTINGS_KEYS.minCashBalance, input.minCashBalance);
   await setSetting(SETTINGS_KEYS.demo, false);
   return ws;
+}
+
+/**
+ * Demo işletmeden çıkar: demo verisini siler, karşılama ekranına döner.
+ * Bulut, yapay zekâ ve kilit ayarları korunur; kullanıcı kendi işletmesini kurar.
+ */
+export async function exitDemo(): Promise<void> {
+  const row = await db.settings.get(SETTINGS_KEYS.activeWorkspace);
+  const wsId = row?.value as ID | undefined;
+  await db.transaction('rw', [db.workspaces, db.settings, db.rates, ...WORKSPACE_TABLES.map((t) => db[t])], async () => {
+    if (wsId) {
+      for (const t of WORKSPACE_TABLES) await db[t].where('workspaceId').equals(wsId).delete();
+      await db.workspaces.delete(wsId);
+    }
+    await db.settings.bulkDelete([SETTINGS_KEYS.demo, SETTINGS_KEYS.activeWorkspace, SETTINGS_KEYS.minCashBalance, SETTINGS_KEYS.tempo]);
+    // Demonun ürettiği (uydurma) kurlar gerçek işletmede kalmasın; gerçek kur yeniden çekilir
+    await db.rates.filter((r) => r.source === 'seed').delete();
+  });
+  setActiveWorkspace(null);
 }
 
 /** Tüm yerel veriyi siler (ayarlar dahil). */

@@ -1,4 +1,5 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, type ReactNode } from 'react';
+import { ChartEmpty } from './ChartEmpty';
 import { motion, AnimatePresence } from 'motion/react';
 import { scaleBand, scaleLinear } from 'd3-scale';
 import type { MonthFlow } from '@/domain/aggregate';
@@ -11,12 +12,28 @@ interface FlowBarsProps {
   height?: number;
   delay?: number;
   label: string;
+  /** Hiç hareket yokken gösterilecek eylem (ör. içe aktar) */
+  emptyAction?: ReactNode;
 }
 
 const M = { top: 12, right: 8, bottom: 26, left: 52 };
 
 /** Ayna çubuklar: girişler yukarı (turkuaz), çıkışlar aşağı (mercan), net kobalt çentik. */
-export function FlowBars({ months, height = 260, delay = 0.2, label }: FlowBarsProps) {
+export function FlowBars(props: FlowBarsProps) {
+  if (props.months.every((m) => !m.inflow && !m.outflow)) {
+    return (
+      <ChartEmpty
+        height={props.height ?? 260}
+        title="Henüz nakit hareketi yok"
+        body="Tahsilat, ödeme ya da banka ekstresi girdikçe aylık giriş ve çıkışlarınız burada çubuklar halinde belirir."
+        action={props.emptyAction}
+      />
+    );
+  }
+  return <FlowBarsChart {...props} />;
+}
+
+function FlowBarsChart({ months, height = 260, delay = 0.2, label }: FlowBarsProps) {
   const [ref, { width }] = useSize<HTMLDivElement>();
   const [hover, setHover] = useState<number | null>(null);
   const w = Math.max(0, width - M.left - M.right);

@@ -60,6 +60,15 @@ describe('parseEntry', () => {
     expect(d.categoryId).toBe('yemek');
   });
 
+  it('treats "ödeme"/"tahsilat" without a named contact as expense/income (cari zorunlu türe düşmez)', () => {
+    const rent = parseEntry('yarın 12 bin kira ödemesi', ctx);
+    expect(rent).toMatchObject({ kind: 'expense', amount: 1_200_000, categoryId: 'kira', date: '2026-09-30' });
+    const cash = parseEntry('5 bin nakit tahsilat', ctx);
+    expect(cash.kind).toBe('income');
+    // Cari adı varsa tahsilat/ödeme olarak kalır
+    expect(parseEntry('Ege Kâğıt’a 120.000 TL ödeme yaptım', ctx).kind).toBe('pay');
+  });
+
   it('returns a low-confidence draft when no amount is found', () => {
     const d = parseEntry('Yıldız Gıda', ctx);
     expect(d.amount).toBeNull();

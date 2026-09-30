@@ -9,7 +9,7 @@ import { useFinance, type Finance } from '@/app/finance';
 import { useUI, type EntryDraft, type EntryKind } from '@/app/ui-store';
 import { Sheet } from '@/ui/Overlay';
 import { Segmented } from '@/ui/Segmented';
-import { DateInput, Field, MoneyInput, Select, TextArea, TextInput } from '@/ui/Field';
+import { DateInput, Field, MoneyInput, Select, TextArea, TextInput, focusFirstInvalid } from '@/ui/Field';
 import { Combobox, type ComboOption } from '@/ui/Combobox';
 import { Button } from '@/ui/Button';
 import { Money } from '@/ui/Money';
@@ -33,14 +33,15 @@ import {
   updateTransaction,
 } from '@/data/repo';
 
-const KIND_OPTIONS: Array<{ value: EntryKind; label: string }> = [
+// Solda bugün gerçekleşen nakit hareketleri, ayraçtan sonra vadeli belgeler (fatura)
+const KIND_OPTIONS: Array<{ value: EntryKind; label: string; divider?: boolean }> = [
   { value: 'collect', label: 'Tahsilat' },
   { value: 'pay', label: 'Ödeme' },
   { value: 'income', label: 'Gelir' },
   { value: 'expense', label: 'Gider' },
   { value: 'transfer', label: 'Transfer' },
-  { value: 'receivable', label: 'Alacak' },
-  { value: 'payable', label: 'Borç' },
+  { value: 'receivable', label: 'Alacak faturası', divider: true },
+  { value: 'payable', label: 'Borç faturası' },
 ];
 
 const KIND_HELP: Record<EntryKind, string> = {
@@ -228,6 +229,16 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
 
   const allocated = Object.values(s.allocations).reduce((a, b) => a + b, 0);
   const advance = (s.amount ?? 0) - allocated;
+  // Faturalarla açıklanmayan cari bakiyesi (devir vb.): fatura dışı tutar önce bundan düşülür, avans sayılmaz
+  const carried = useMemo(() => {
+    if (!isLedgerKind(s.kind) || !s.contactId) return 0;
+    const c = f.contactsById.get(s.contactId);
+    if (!c || c.currency !== currency) return 0;
+    const bal = f.contactBalances.get(s.contactId) ?? 0;
+    const owed = s.kind === 'collect' ? bal : -bal;
+    const docsTotal = openDocs.filter((d) => d.doc.currency === currency).reduce((x, d) => x + d.remaining, 0);
+    return Math.max(0, owed - docsTotal);
+  }, [s.kind, s.contactId, currency, f.contactsById, f.contactBalances, openDocs]);
 
   // Transfer: karşı tutar
   const suggestedToAmount =
@@ -268,10 +279,10 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
       if (!s.toAccountId) e.toAccount = 'Hedef hesabı seçin';
       else if (s.toAccountId === s.accountId) e.toAccount = 'Kaynak ve hedef aynı olamaz';
     }
-    if (isDocKind(s.kind) && !s.description.trim()) e.description = 'Belgeye bir başlık verin';
     if (isDocKind(s.kind) && s.dueDate < s.date) e.dueDate = 'Vade, belge tarihinden önce olamaz';
     if (isLedgerKind(s.kind) && advance < 0) e.allocations = 'Dağıtılan tutar ödemeyi aşıyor';
     setErrors(e);
+    if (Object.keys(e).length) focusFirstInvalid();
     return Object.keys(e).length === 0;
   }
 
@@ -299,7 +310,8 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
           direction: s.kind as 'receivable' | 'payable',
           contactId: s.contactId,
           categoryId: s.categoryId,
-          title: s.description.trim(),
+          // Başlık boşsa anlamlı bir varsayılan: "Satış faturası DNZ2026…" ya da "Alış faturası"
+          title: s.description.trim() || `${s.kind === 'receivable' ? 'Satış faturası' : 'Alış faturası'}${s.number.trim() ? ` ${s.number.trim()}` : ''}`,
           number: s.number.trim() || undefined,
           issueDate: s.date,
           dueDate: s.dueDate,
@@ -396,7 +408,7 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
               set({ kind, categoryId: undefined, allocations: {}, allocTouched: false, accountId: s.accountId ?? defaultAccount(f) });
               setErrors({});
             }}
-            options={KIND_OPTIONS}
+            options={KIND_OPTIONS.map((o) => ({ ...o, title: KIND_HELP[o.value] }))}
           />
         </div>
       )}
@@ -482,6 +494,7 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
           allocations={s.allocations}
           onChange={(allocations) => set({ allocations, allocTouched: true })}
           advance={advance}
+          carried={carried}
           error={errors.allocations}
           today={f.today}
           kind={s.kind}
@@ -606,7 +619,7 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
         </Field>
       )}
 
-      <Field label={isDocKind(s.kind) ? 'Başlık' : 'Açıklama'} optional={!isDocKind(s.kind)} error={errors.description}>
+      <Field label={isDocKind(s.kind) ? 'Başlık' : 'Açıklama'} optional error={errors.description}>
         {(p) =>
           isDocKind(s.kind) ? (
             <TextInput {...p} value={s.description} onChange={(e) => set({ description: e.target.value })} placeholder={s.kind === 'receivable' ? 'Satış faturası' : 'Alış faturası'} />
@@ -616,7 +629,7 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
         }
       </Field>
 
-      <div className="sticky bottom-0 -mx-6 -mb-5 mt-2 flex items-center justify-between gap-3 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
+      <div className="sticky -bottom-5 -mx-6 -mb-5 mt-2 flex items-center justify-between gap-3 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
         <SummaryLine s={s} currency={currency} contactName={contact?.name} accountName={account?.name} />
         <Button type="submit" variant="primary" size="lg" magnetic loading={saving} trailing={<ArrowRight size={16} weight="bold" />}>
           {editing ? 'Değişiklikleri kaydet' : 'Kaydet'}
@@ -720,17 +733,35 @@ interface AllocationListProps {
   allocations: Record<ID, MoneyValue>;
   onChange: (next: Record<ID, MoneyValue>) => void;
   advance: MoneyValue;
+  /** Faturalarla açıklanmayan cari bakiyesi (devir vb.) */
+  carried: MoneyValue;
   error?: string;
   today: ISODate;
   kind: EntryKind;
 }
 
-function AllocationList({ docs, currency, allocations, onChange, advance, error, today, kind }: AllocationListProps) {
+function AllocationList({ docs, currency, allocations, onChange, advance, carried, error, today, kind }: AllocationListProps) {
+  // Fatura dışı tutar: önce devir/cari bakiyesinden düşer, kalanı gerçekten avanstır
+  const fromCarried = Math.min(Math.max(0, advance), carried);
+  const trueAdvance = Math.max(0, advance - fromCarried);
+  const side = kind === 'collect' ? 'alacağı' : 'borcu';
   if (!docs.length) {
     return (
-      <div className="flex items-center gap-2 rounded-[14px] border border-dashed border-line-strong px-4 py-3 text-xs text-muted">
-        <CheckCircle size={16} className="text-inflow-text" />
-        Bu carinin açık {kind === 'collect' ? 'alacağı' : 'borcu'} yok. Tutar avans olarak cari hesaba işlenir.
+      <div className="flex items-start gap-2 rounded-[14px] border border-dashed border-line-strong px-4 py-3 text-xs text-muted">
+        <CheckCircle size={16} className="mt-px shrink-0 text-inflow-text" />
+        {carried > 0 ? (
+          <span>
+            Açık fatura yok; tutar <Money value={carried} currency={currency} className="font-medium text-ink" /> cari bakiyesinden (devir) düşülür.
+            {trueAdvance > 0 && (
+              <>
+                {' '}
+                Fazla kalan <Money value={trueAdvance} currency={currency} className="font-medium text-saffron-text" /> avans olarak işlenir.
+              </>
+            )}
+          </span>
+        ) : (
+          <span>Bu carinin açık {side} yok. Tutar avans olarak cari hesaba işlenir.</span>
+        )}
       </div>
     );
   }
@@ -738,8 +769,24 @@ function AllocationList({ docs, currency, allocations, onChange, advance, error,
     <div className="rounded-[16px] border border-line">
       <div className="flex items-center justify-between border-b border-line px-4 py-2.5">
         <span className="text-xs font-medium text-ink-2">Açık {kind === 'collect' ? 'faturalar' : 'borçlar'} · vade sırasıyla</span>
-        <span className={cn('text-2xs', advance > 0 ? 'text-saffron-text' : 'text-muted')}>
-          {advance > 0 ? <>Avans: <Money value={advance} currency={currency} /></> : 'Tamamı dağıtıldı'}
+        <span className={cn('text-right text-2xs', trueAdvance > 0 ? 'text-saffron-text' : 'text-muted')}>
+          {advance <= 0 ? (
+            'Tamamı dağıtıldı'
+          ) : (
+            <>
+              {fromCarried > 0 && (
+                <span className="text-muted">
+                  Devirden: <Money value={fromCarried} currency={currency} />
+                  {trueAdvance > 0 && ' · '}
+                </span>
+              )}
+              {trueAdvance > 0 && (
+                <>
+                  Avans: <Money value={trueAdvance} currency={currency} />
+                </>
+              )}
+            </>
+          )}
         </span>
       </div>
       <ul className="scrollbar-thin max-h-56 divide-y divide-line overflow-y-auto">

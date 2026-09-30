@@ -12,6 +12,20 @@ import { estimateVat, type VatPeriod } from '@/domain/vat';
 import { buildForecast, type ForecastInput, type ForecastResult } from '@/domain/forecast';
 import { computeRunRate, type RunRate } from '@/domain/runrate';
 import { DEFAULT_AI, type AiConfig } from '@/ai/config';
+import type { CloudConfig } from '@/cloud/store';
+
+/**
+ * Yapay zekâ ayarı: Ayarlar'dan girilen anahtar önceliklidir. Anahtar boşsa ve
+ * .env dosyasında VITE_GROQ_API_KEY varsa o kullanılır (dosyaya yazmak açık onay sayılır).
+ */
+function resolveAiConfig(stored: Partial<AiConfig> | undefined): AiConfig {
+  const cfg: AiConfig = { ...DEFAULT_AI, ...(stored ?? {}) };
+  const envKey = (import.meta.env.VITE_GROQ_API_KEY as string | undefined)?.trim();
+  if (!cfg.apiKey && envKey) {
+    return { ...cfg, apiKey: envKey, enabled: stored?.enabled ?? true, consentAt: cfg.consentAt ?? 'env' };
+  }
+  return cfg;
+}
 import type { CurrencyCode, Money } from '@/domain/money';
 import type {
   Account,
@@ -50,6 +64,7 @@ export interface FinanceSnapshot {
     ai: AiConfig;
     lock: { pinHash: string; salt: string } | null;
     lastBackupAt: string | null;
+    cloud: CloudConfig | null;
   };
 }
 
@@ -146,7 +161,8 @@ async function loadSnapshot(): Promise<LoadState> {
         minCashBalance: (setting(SETTINGS_KEYS.minCashBalance) as number | undefined) ?? 100_000_000,
         isDemo: Boolean(setting(SETTINGS_KEYS.demo)),
         tempo: (setting(SETTINGS_KEYS.tempo) as boolean | undefined) ?? true,
-        ai: { ...DEFAULT_AI, ...((setting(SETTINGS_KEYS.ai) as Partial<AiConfig> | undefined) ?? {}) },
+        ai: resolveAiConfig(setting(SETTINGS_KEYS.ai) as Partial<AiConfig> | undefined),
+        cloud: (setting(SETTINGS_KEYS.cloud) as CloudConfig | undefined) ?? null,
         lock: (setting(SETTINGS_KEYS.lock) as { pinHash: string; salt: string } | undefined) ?? null,
         lastBackupAt: (setting(SETTINGS_KEYS.lastBackup) as string | undefined) ?? null,
       },
@@ -173,6 +189,7 @@ export function forecastInput(
     recurring: f.recurring,
     postedOccurrences: f.postedOccurrences,
     instruments: f.instruments,
+    transactions: f.transactions,
     rates: f.rates,
     behavior: f.behavior,
     fallbackBehavior: f.fallbackBehavior,
@@ -202,9 +219,11 @@ function derive(s: FinanceSnapshot, today: ISODate): FinanceDerived {
     behavior,
     excludeCategoryIds: periodicCategories,
   });
-  const forecast = buildForecast(
+  const built = buildForecast(
     forecastInput({ ...s, today, docStates, behavior, fallbackBehavior, postedOccurrences, vat, totalBase, runRate }, 90),
   );
+  // Henüz hesap yokken "nakit ₺0'a iniyor" demek yanıltıcı: kurulum bitene dek eşik uyarısı üretme
+  const forecast = active.length ? built : { ...built, alerts: [] };
   return {
     today,
     runRate,

@@ -1,4 +1,8 @@
-export type AiProvider = 'groq' | 'openai-compatible';
+/**
+ * groq: anahtar bu cihazda · openai-compatible: özel uç nokta (ör. Ollama) ·
+ * cloud: Supabase Edge Function (ai-proxy) — anahtar sunucuda, oturum jetonuyla çağrılır.
+ */
+export type AiProvider = 'groq' | 'openai-compatible' | 'cloud';
 
 export interface AiConfig {
   enabled: boolean;
@@ -34,4 +38,14 @@ export const DEFAULT_AI: AiConfig = {
 
 export function isAiReady(c: AiConfig | undefined | null): c is AiConfig {
   return Boolean(c && c.enabled && c.apiKey && c.consentAt);
+}
+
+/**
+ * Çağrı anındaki etkin yapılandırma. Bulut sağlayıcısında anahtar yerine oturum jetonu
+ * ve Edge Function adresi kullanılır.
+ */
+export function effectiveAiConfig(c: AiConfig, cloud: { url: string; accessToken: string } | null): AiConfig | null {
+  if (c.provider !== 'cloud') return isAiReady(c) ? c : null;
+  if (!cloud || !c.enabled || !c.consentAt) return null;
+  return { ...c, apiKey: cloud.accessToken, baseUrl: `${cloud.url.replace(/\/$/, '')}/functions/v1/ai-proxy` };
 }

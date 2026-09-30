@@ -108,6 +108,26 @@ describe('buildForecast', () => {
     expect(day('2026-03-10').outflow).toBe(70_000);
   });
 
+  it('includes future-dated (planned) transactions on their date in every band; ignores today and transfers', () => {
+    const f = buildForecast(
+      input({
+        transactions: [
+          tx({ id: 'kira', kind: 'expense', amount: 12_000, date: '2026-03-02', description: 'Kira' }),
+          tx({ id: 'usd', kind: 'income', amount: 100, currency: 'USD', rateToBase: 50, date: '2026-03-04' }),
+          tx({ id: 'bugun', kind: 'expense', amount: 5_000, date: TODAY }), // bugünkü bakiyede zaten var
+          tx({ id: 'virman', kind: 'transfer', amount: 9_000, date: '2026-03-03', toAccountId: 'b' }),
+          tx({ id: 'uzak', kind: 'expense', amount: 1, date: '2027-01-01' }), // ufkun dışında
+        ],
+      }),
+    );
+    const day = (d: string) => f.days.find((x) => x.date === d)!;
+    expect(day('2026-03-01').expected).toBe(100_000);
+    expect(day('2026-03-02')).toMatchObject({ expected: 88_000, optimistic: 88_000, pessimistic: 88_000, outflow: 12_000 });
+    expect(day('2026-03-03').expected).toBe(88_000);
+    expect(day('2026-03-04').expected).toBe(93_000);
+    expect(f.items.find((i) => i.refId === 'kira')).toMatchObject({ source: 'planned', label: 'Kira', probability: 1 });
+  });
+
   it('delays receivables by the customer\'s habit in the base case and by P80 in the pessimistic band', () => {
     const f = buildForecast(
       input({

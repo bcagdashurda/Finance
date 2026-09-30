@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Masker } from './masking';
-import { chat, AiError } from './client';
+import { chat, AiError, getAiUsage, pickModel } from './client';
 import { DEFAULT_AI } from './config';
 import { runTool } from './tools';
 import { askAssistant } from './features';
@@ -82,7 +82,29 @@ describe('chat client', () => {
     await chat(config, { messages: [{ role: 'user', content: 'x' }] });
     const body = JSON.parse((fetchMock.mock.calls[0] as unknown as [string, RequestInit])[1].body as string);
     expect(body.reasoning_effort).toBe('low');
+    expect(body.include_reasoning).toBe(false);
     expect(body.model).toBe('openai/gpt-oss-120b');
+  });
+
+  it('reads the daily request allowance from Groq rate-limit headers', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'ok' } }] }), {
+          status: 200,
+          headers: { 'x-ratelimit-limit-requests': '1000', 'x-ratelimit-remaining-requests': '987', 'x-ratelimit-remaining-tokens': '7400' },
+        }),
+      ),
+    );
+    await chat(config, { messages: [{ role: 'user', content: 'x' }] });
+    expect(getAiUsage()).toMatchObject({ limitRequests: 1000, remainingRequests: 987, remainingTokens: 7400 });
+  });
+
+  it('picks the best available model when a default is withdrawn', () => {
+    const available = ['qwen/qwen3.8-27b', 'whisper-large-v3', 'openai/gpt-oss-20b'];
+    expect(pickModel(available, ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b'], /gpt|qwen/)).toBe('qwen/qwen3.8-27b');
+    expect(pickModel(available, ['whisper-large-v3-turbo'], /whisper/)).toBe('whisper-large-v3');
+    expect(pickModel(['x'], ['y'], /z/)).toBeNull();
   });
 
   it('exposes AiError for callers', () => {

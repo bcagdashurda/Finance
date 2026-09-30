@@ -4,13 +4,14 @@ import { motion } from 'motion/react';
 import { ArrowsLeftRight, Plus, Archive } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { useUI } from '@/app/ui-store';
+import { useParamAction } from '@/app/useParamAction';
 import { PageHeader } from '@/ui/PageHeader';
 import { Button } from '@/ui/Button';
 import { Money } from '@/ui/Money';
 import { Badge } from '@/ui/bits';
 import { AccountIcon, ACCOUNT_KIND_LABEL } from '@/ui/icons';
 import { cn, slotColor } from '@/ui/cn';
-import { percent } from '@/ui/format';
+import { formatDate, percent } from '@/ui/format';
 import { Sparkline } from '@/charts/Sparkline';
 import { balanceSeries, amountInBase } from '@/domain/balances';
 import { addDays } from '@/domain/dates';
@@ -22,6 +23,7 @@ export default function HesaplarPage() {
   const f = useFinance();
   const openEntry = useUI((s) => s.openEntry);
   const [sheet, setSheet] = useState(false);
+  useParamAction('yeni', () => setSheet(true));
   const [showArchived, setShowArchived] = useState(false);
   const list = f.accounts.filter((a) => showArchived || !a.archived);
 
@@ -62,7 +64,7 @@ export default function HesaplarPage() {
           <Money value={f.totalBase} split className="display mt-1 block text-4xl" />
         </div>
         <div className="text-2xs text-muted">
-          Kurlar: USD {f.rates.USD.toLocaleString('tr-TR')} · EUR {f.rates.EUR.toLocaleString('tr-TR')} {f.ratesDate && `· ${f.ratesDate}`}
+          Kurlar: USD {f.rates.USD.toLocaleString('tr-TR')} · EUR {f.rates.EUR.toLocaleString('tr-TR')} {f.ratesDate && `· ${formatDate(f.ratesDate)}`}
         </div>
       </motion.div>
 

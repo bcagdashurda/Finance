@@ -508,7 +508,7 @@ function FxView() {
   const rows = fxExposure(f.accounts, f.balances, f.documents, f.allocationIndex, f.rates, f.today);
   return (
     <Panel reveal={0}>
-      <PanelHeader title="Döviz pozisyonu" description={`Kurlar ${f.ratesDate ?? '—'} · TL %10 değer kaybederse net pozisyonun TL karşılığındaki değişim`} />
+      <PanelHeader title="Döviz pozisyonu" description={`Kurlar ${f.ratesDate ? formatDate(f.ratesDate) : '—'} · TL %10 değer kaybederse net pozisyonun TL karşılığındaki değişim`} />
       <div className="grid gap-3 sm:grid-cols-2">
         {rows.map((r) => (
           <div key={r.currency} className="rounded-[18px] border border-line p-5">

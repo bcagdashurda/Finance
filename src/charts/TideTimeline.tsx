@@ -5,6 +5,7 @@ import { addDays, dayOfWeek, isBusinessDay, type ISODate } from '@/domain/dates'
 import { formatShort, formatMoney } from '@/domain/money';
 import { cn } from '@/ui/cn';
 import { formatDayMonth, formatWeekdayShort } from '@/ui/format';
+import { ChartEmpty } from './ChartEmpty';
 
 interface TideTimelineProps {
   items: ForecastItem[];
@@ -37,9 +38,20 @@ export function TideTimeline({ items, today, days = 14, contactName, onSelect, d
     return map;
   }, [items, dates]);
 
-  const max = Math.max(1, ...items.filter((i) => dates.includes(i.expected)).map((i) => i.expectedAmount));
+  const inRange = items.filter((i) => byDay.has(i.expected));
+  const max = Math.max(1, ...inRange.map((i) => i.expectedAmount));
   const size = (amount: number) => 10 + Math.sqrt(amount / max) * 62;
   const hovered = items.find((i) => i.key === hover);
+
+  if (!inRange.length) {
+    return (
+      <ChartEmpty
+        height={200}
+        title={`Önümüzdeki ${days} günde planlı giriş ya da çıkış yok`}
+        body="Vadeli faturalar, çekler ve tekrarlayan ödemeler (kira, maaş, vergi) girildikçe gün gün burada belirir."
+      />
+    );
+  }
 
   return (
     <div className="relative">
@@ -121,6 +133,7 @@ function sourceLabel(i: ForecastItem): string {
   if (i.source === 'instrument') return i.direction === 'in' ? 'Portföy çeki' : 'Verilen çek';
   if (i.source === 'recurring') return 'Tekrarlayan';
   if (i.source === 'vat') return 'Vergi tahmini';
+  if (i.source === 'planned') return 'Planlı işlem';
   return 'Senaryo';
 }
 

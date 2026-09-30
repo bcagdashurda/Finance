@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { formatIban, isValidIban, isValidTckn, isValidVkn, makeTrIban, makeVkn, normalizeIban } from './validators';
+import { bankFromIban, formatIban, isValidIban, isValidTckn, isValidVkn, makeTrIban, makeVkn, normalizeIban } from './validators';
 
 describe('IBAN', () => {
   it('accepts a valid Turkish IBAN with or without spaces', () => {
@@ -15,6 +15,15 @@ describe('IBAN', () => {
   it('formats in groups of four', () => {
     expect(formatIban('tr330006100519786457841326')).toBe('TR33 0006 1005 1978 6457 8413 26');
     expect(normalizeIban(' tr33 0006 ')).toBe('TR330006');
+  });
+
+  it('recognises the bank from a Turkish IBAN (EFT code)', () => {
+    expect(bankFromIban(makeTrIban('00062', '0000000123456789'))).toBe('Garanti BBVA');
+    expect(bankFromIban('TR33 0001 0005 1978 6457 8413 26')).toBe('Ziraat Bankası');
+    expect(bankFromIban('TR3300064')).toBe('İş Bankası');
+    expect(bankFromIban('TR12 9999 9')).toBeNull();
+    expect(bankFromIban('DE89370400440532013000')).toBeNull();
+    expect(bankFromIban('TR33')).toBeNull();
   });
 
   it('builds valid IBANs from a bank code and account number', () => {

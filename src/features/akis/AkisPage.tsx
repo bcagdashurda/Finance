@@ -18,7 +18,7 @@ import { addDays, startOfWeek } from '@/domain/dates';
 import { buildForecast, type ForecastItem } from '@/domain/forecast';
 import { formatShort } from '@/domain/money';
 import type { Adjustment, Scenario } from '@/domain/types';
-import { deleteScenario, newId, setSetting, updateScenario } from '@/data/repo';
+import { deleteScenario, newId, setWorkspaceSetting, updateScenario } from '@/data/repo';
 import { SETTINGS_KEYS } from '@/data/load';
 import { ScenarioSheet } from './ScenarioSheet';
 import { describeAdjustment } from './scenario-ui';
@@ -32,6 +32,7 @@ const SOURCE_LABEL: Record<ForecastItem['source'], string> = {
   vat: 'KDV tahmini',
   scenario: 'Senaryo',
   runrate: 'Tempo',
+  planned: 'Planlı işlem',
 };
 
 export default function AkisPage() {
@@ -78,10 +79,10 @@ export default function AkisPage() {
     return [...map.entries()];
   }, [items]);
 
-  const toggleTempo = (v: boolean) => void setSetting(SETTINGS_KEYS.tempo, v);
+  const toggleTempo = (v: boolean) => void setWorkspaceSetting(SETTINGS_KEYS.tempo, v);
 
   const excludeQuick = (it: ForecastItem) => {
-    if (it.source === 'runrate' || it.source === 'vat' || it.source === 'scenario' || !it.refId) {
+    if (it.source === 'runrate' || it.source === 'vat' || it.source === 'scenario' || it.source === 'planned' || !it.refId) {
       toast('Bu kalem hızlı senaryoyla çıkarılamaz');
       return;
     }

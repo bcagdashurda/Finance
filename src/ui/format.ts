@@ -55,5 +55,6 @@ export function pluralDays(n: number): string {
 }
 
 export function percent(value: number, digits = 0): string {
-  return new Intl.NumberFormat('tr-TR', { style: 'percent', maximumFractionDigits: digits }).format(value);
+  // Tutarlarla aynı tipografik eksi (U+2212); Intl kısa çizgi (-) üretir
+  return new Intl.NumberFormat('tr-TR', { style: 'percent', maximumFractionDigits: digits }).format(value).replace('-', '−');
 }

@@ -26,6 +26,8 @@ interface ForecastChartProps {
   showBand?: boolean;
   delay?: number;
   label: string;
+  /** Kapsayıcının yüksekliğini doldurur (height en az yükseklik olur): yan sütun uzunsa boşluk kalmaz */
+  fill?: boolean;
 }
 
 const M = { top: 16, right: 12, bottom: 28, left: 56 };
@@ -34,15 +36,18 @@ const M = { top: 16, right: 12, bottom: 28, left: 56 };
 export function ForecastChart({
   days,
   minBalance,
-  height = 300,
+  height: minHeight = 300,
   compact = false,
   overlays = [],
   history = [],
   showBand = true,
   delay = 0.3,
   label,
+  fill = false,
 }: ForecastChartProps) {
-  const [ref, { width }] = useSize<HTMLDivElement>();
+  const [ref, { width, height: measured }] = useSize<HTMLDivElement>();
+  const height = fill ? Math.max(minHeight, measured) : minHeight;
+  const boxStyle = fill ? { height: '100%', minHeight } : { height };
   const [hover, setHover] = useState<number | null>(null);
   const uid = useId().replace(/:/g, '');
   const margin = compact ? { top: 10, right: 6, bottom: 22, left: 6 } : M;
@@ -114,10 +119,10 @@ export function ForecastChart({
 
   const hovered = hover != null ? days[hover] : null;
 
-  if (!days.length) return <div ref={ref} style={{ height }} />;
+  if (!days.length) return <div ref={ref} style={boxStyle} />;
 
   return (
-    <div ref={ref} className="relative w-full select-none" style={{ height }}>
+    <div ref={ref} className="relative w-full select-none" style={boxStyle}>
       {width > 0 && (
         <svg
           width={width}
@@ -235,8 +240,8 @@ export function ForecastChart({
               </g>
             )}
 
-            {/* En düşük nokta */}
-            {minPoint && (
+            {/* En düşük nokta (bugünün kendisi en düşükse ve eşik aşılmıyorsa işaretlemek anlamsız) */}
+            {minPoint && (minPoint !== days[0] || belowMin) && (
               <motion.g initial={{ opacity: 0, scale: 0.4 }} animate={{ opacity: 1, scale: 1 }} transition={{ delay: delay + 1.5, type: 'spring', stiffness: 300, damping: 18 }}>
                 {belowMin && <circle cx={x(minPoint.date)} cy={y(minPoint.expected)} r={9} fill="var(--outflow)" className="pulse-ring" />}
                 <circle
@@ -271,7 +276,9 @@ export function ForecastChart({
             <AnimatePresence>
               {hovered && (
                 <motion.g initial={{ opacity: 0 }} animate={{ opacity: 1 }} exit={{ opacity: 0 }} transition={{ duration: 0.12 }}>
+                  {/* initial={false}: ilk karede de geçerli koordinat (aksi halde "x1: undefined" konsol hatası) */}
                   <motion.line
+                    initial={false}
                     animate={{ x1: x(hovered.date), x2: x(hovered.date) }}
                     transition={{ type: 'spring', stiffness: 700, damping: 40 }}
                     y1={0}
@@ -280,6 +287,7 @@ export function ForecastChart({
                     strokeOpacity={0.4}
                   />
                   <motion.circle
+                    initial={false}
                     animate={{ cx: x(hovered.date), cy: y(hovered.expected) }}
                     transition={{ type: 'spring', stiffness: 700, damping: 40 }}
                     r={5}

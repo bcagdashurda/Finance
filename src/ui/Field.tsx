@@ -48,6 +48,14 @@ export function Field({ label, hint, error, children, className, optional }: Fie
   );
 }
 
+/** Doğrulama sonrası ilk hatalı alana odaklanır (klavye ve ekran okuyucu kullanıcıları hatayı kaçırmasın). */
+export function focusFirstInvalid(): void {
+  requestAnimationFrame(() => {
+    const el = document.querySelector<HTMLElement>('[role="dialog"] [aria-invalid="true"], [aria-invalid="true"]');
+    el?.focus();
+  });
+}
+
 export const TextInput = forwardRef<HTMLInputElement, InputHTMLAttributes<HTMLInputElement>>(function TextInput(
   { className, ...rest },
   ref,

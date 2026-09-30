@@ -161,6 +161,25 @@ describe('contactBalance', () => {
     expect(contactBalances([customer], docs, [], [], undefined, '2026-02-01').get('c1')).toBe(110_000);
   });
 
+  it('does not double count history that the carried-forward balance already includes', () => {
+    // Devir 120.000, 30 Eylül itibarıyla. Eylül ekstresinden gelen tahsilat devire zaten yansımış.
+    const c = contact({ id: 'dv', openingBalance: 120_000, openingDate: '2026-09-30' });
+    const before = tx({ contactId: 'dv', kind: 'income', amount: 45_000, affectsLedger: true, date: '2026-09-02' });
+    const after = tx({ contactId: 'dv', kind: 'income', amount: 20_000, affectsLedger: true, date: '2026-10-05' });
+    const invoice = doc({ contactId: 'dv', amount: 240_000, issueDate: '2026-09-30' });
+    expect(contactBalance(c, [invoice], [before, after], [])).toBe(120_000 + 240_000 - 20_000);
+    expect(contactBalances([c], [invoice], [before, after], []).get('dv')).toBe(340_000);
+    const rows = contactStatement(c, [invoice], [before, after], []);
+    expect(rows.map((r) => r.date)).toEqual([null, '2026-09-30', '2026-10-05']);
+    expect(rows.at(-1)!.balance).toBe(340_000);
+  });
+
+  it('counts all history when there is no carried-forward date', () => {
+    const c = contact({ id: 'nd', openingBalance: 0 });
+    const early = tx({ contactId: 'nd', kind: 'income', amount: 45_000, affectsLedger: true, date: '2020-01-01' });
+    expect(contactBalance(c, [], [early], [])).toBe(-45_000);
+  });
+
   it('treats an issued cheque as payment to the supplier', () => {
     const supplier = contact({ id: 's2', kind: 'supplier' });
     const docs = [doc({ contactId: 's2', direction: 'payable', amount: 80_000 })];

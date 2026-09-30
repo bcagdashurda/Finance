@@ -130,6 +130,9 @@ function toContactCurrency(amount: Money, entry: LedgerEntry, contact: Contact, 
   return convertMinor(amount, entry.rateToBase, contactRate);
 }
 
+/** Devir tarihinden önceki hareket devire zaten dahildir. */
+const beforeOpening = (c: Contact, date: ISODate) => Boolean(c.openingDate && date < c.openingDate);
+
 export function contactBalance(
   contact: Contact,
   documents: Iterable<FinDocument>,
@@ -140,7 +143,7 @@ export function contactBalance(
 ): Money {
   let balance = contact.openingBalance;
   for (const e of ledgerEntries(documents, transactions, instruments)) {
-    if (e.contactId !== contact.id || (asOf && e.date > asOf)) continue;
+    if (e.contactId !== contact.id || (asOf && e.date > asOf) || beforeOpening(contact, e.date)) continue;
     balance += toContactCurrency(e.debit - e.credit, e, contact, rates);
   }
   return balance;
@@ -159,7 +162,7 @@ export function contactBalances(
   const out = new Map<ID, Money>(contacts.map((c) => [c.id, c.openingBalance]));
   for (const e of ledgerEntries(documents, transactions, instruments)) {
     const c = byId.get(e.contactId);
-    if (!c || (asOf && e.date > asOf)) continue;
+    if (!c || (asOf && e.date > asOf) || beforeOpening(c, e.date)) continue;
     out.set(c.id, (out.get(c.id) ?? 0) + toContactCurrency(e.debit - e.credit, e, c, rates));
   }
   return out;
@@ -184,7 +187,7 @@ export function contactStatement(
   rates?: RateTable,
 ): StatementRow[] {
   const entries = [...ledgerEntries(documents, transactions, instruments)]
-    .filter((e) => e.contactId === contact.id)
+    .filter((e) => e.contactId === contact.id && !beforeOpening(contact, e.date))
     .sort((a, b) => a.date.localeCompare(b.date) || b.debit - a.debit);
 
   const opening = contact.openingBalance;
@@ -193,7 +196,7 @@ export function contactStatement(
       date: null,
       kind: 'opening',
       refId: null,
-      description: 'Açılış bakiyesi',
+      description: 'Devir bakiyesi',
       debit: Math.max(opening, 0),
       credit: Math.max(-opening, 0),
       balance: opening,

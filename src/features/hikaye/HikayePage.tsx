@@ -119,9 +119,9 @@ function Story({ data }: { data: StoryData }) {
       <section id="s-cover" className="relative h-[170vh]">
         <div className="sticky top-16 flex h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden">
           <CoverArt />
-          <div id="cover-title" className="relative z-10 px-6 text-center">
+          <div id="cover-title" className="@container relative z-10 w-full px-6 text-center">
             <p className="text-sm text-muted">{f.workspace.legalName ?? f.workspace.name}</p>
-            <h1 className="display mt-3 text-[18vw] font-semibold capitalize leading-[0.85] tracking-[-0.05em] text-ink sm:text-[11rem]">{monthName}</h1>
+            <h1 className="display mt-3 text-[clamp(3.5rem,19cqw,11rem)] font-semibold capitalize leading-[0.85] tracking-[-0.05em] text-ink">{monthName}</h1>
             <p className="display mt-2 text-3xl text-muted">{year} · ayın hikâyesi</p>
             <p className="mt-10 inline-flex items-center gap-2 text-xs text-muted">
               <ArrowDown size={14} className="animate-bounce" /> Kaydırın
@@ -205,9 +205,10 @@ function Story({ data }: { data: StoryData }) {
 
       {/* 4 · Net */}
       <section id="s-net" className="relative h-[160vh]">
-        <div className="sticky top-16 flex h-[calc(100dvh-4rem)] flex-col items-center justify-center px-6 text-center">
+        <div className="@container sticky top-16 flex h-[calc(100dvh-4rem)] flex-col items-center justify-center px-6 text-center">
           <p className="text-sm text-muted">Ayın net sonucu</p>
-          <div id="net-figure" className={`display num-wide mt-4 text-[15vw] font-semibold leading-none tracking-[-0.05em] sm:text-[9rem] ${data.net >= 0 ? 'text-inflow-text' : 'text-outflow-text'}`}>
+          {/* Boyut kapsayıcıya göre: uzun tutarlar ("+₺1,2 milyon") hiçbir genişlikte taşmaz */}
+          <div id="net-figure" className={`display num-wide mt-4 max-w-full text-[clamp(2.5rem,12.5cqw,9rem)] font-semibold leading-none tracking-[-0.05em] ${data.net >= 0 ? 'text-inflow-text' : 'text-outflow-text'}`}>
             {data.net >= 0 ? '+' : '−'}
             {formatShort(Math.abs(data.net))}
           </div>

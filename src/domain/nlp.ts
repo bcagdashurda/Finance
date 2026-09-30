@@ -184,6 +184,9 @@ export function parseEntry(input: string, ctx: EntryContext): ParsedEntry {
   }
   if (kind === 'income' && contact && contact.item.kind !== 'supplier') kind = 'collect';
   if (kind === 'expense' && contact && contact.item.kind === 'supplier') kind = 'pay';
+  // "kira ödemesi", "nakit tahsilat": cari adı yoksa cariye bağlı tür (tahsilat/ödeme) değil, gelir/gider
+  if (!contact && kind === 'pay') kind = 'expense';
+  if (!contact && kind === 'collect') kind = 'income';
   if (!kind) {
     if (contact) kind = contact.item.kind === 'supplier' ? 'pay' : 'collect';
     else if (category) kind = category.item.kind === 'income' ? 'income' : 'expense';
@@ -228,20 +231,21 @@ export const CATEGORY_KEYWORDS: Record<string, string[]> = {
   handshake: ['hizmet', 'danışmanlık geliri'],
   percent: ['faiz', 'repo', 'mevduat'],
   package: ['hammadde', 'malzeme', 'kağıt', 'karton', 'mukavva'],
-  users: ['maaş', 'maas', 'personel', 'avans', 'prim'],
-  bank: ['sgk', 'muhtasar', 'bağkur'],
+  // Eşleşmede en uzun anahtar kelime kazanır: "sgk prim" (8) > "maaş" — bu yüzden "prim" tek başına yok
+  users: ['maaş', 'maas', 'personel', 'avans', 'bordro', 'maaş ödemesi'],
+  bank: ['sgk', 'sgk prim', 'sgk primi', 'sosyal güvenlik', 'muhtasar', 'bağkur'],
   buildings: ['kira'],
-  lightning: ['elektrik', 'doğalgaz', 'su faturası', 'enerji'],
-  truck: ['nakliye', 'kargo', 'lojistik', 'navlun'],
+  lightning: ['elektrik', 'doğalgaz', 'su faturası', 'enerji', 'enerjisa', 'igdaş', 'başkentgaz', 'ck enerji', 'aydem', 'iski', 'aski', 'izsu'],
+  truck: ['nakliye', 'kargo', 'lojistik', 'navlun', 'yurtiçi kargo', 'aras kargo', 'mng kargo'],
   wrench: ['bakım', 'onarım', 'tamir', 'servis', 'makine'],
   receipt: ['kdv'],
   scales: ['vergi', 'harç', 'damga'],
-  'credit-card': ['kredi', 'taksit', 'masraf', 'komisyon', 'faiz gideri'],
+  'credit-card': ['kredi', 'taksit', 'masraf', 'komisyon', 'faiz gideri', 'hesap işletim', 'işletim ücreti', 'eft ücreti', 'havale ücreti', 'bsmv', 'kart aidatı'],
   briefcase: ['müşavir', 'muhasebe', 'avukat', 'danışman'],
-  car: ['yakıt', 'benzin', 'mazot', 'akaryakıt', 'otopark', 'köprü', 'otoyol'],
-  'fork-knife': ['yemek', 'kahve', 'restoran', 'ikram'],
+  car: ['yakıt', 'benzin', 'mazot', 'akaryakıt', 'otopark', 'köprü', 'otoyol', 'opet', 'shell', 'petrol ofisi', 'aytemiz', 'hgs', 'ogs', 'lastik'],
+  'fork-knife': ['yemek', 'kahve', 'restoran', 'ikram', 'multinet', 'sodexo', 'ticket'],
   paperclip: ['kırtasiye', 'ofis', 'toner'],
-  cloud: ['yazılım', 'abonelik', 'lisans', 'hosting', 'sunucu'],
+  cloud: ['yazılım', 'abonelik', 'lisans', 'hosting', 'sunucu', 'telekom', 'turkcell', 'vodafone', 'superonline', 'türknet', 'gsm'],
   megaphone: ['reklam', 'pazarlama', 'google', 'instagram', 'fuar'],
   shield: ['sigorta', 'kasko', 'poliçe'],
 };

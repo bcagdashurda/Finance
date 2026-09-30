@@ -27,6 +27,8 @@ export function TransactionRow({ t, selected, onToggle, accountId }: Transaction
   const value = contextual ?? (t.kind === 'income' ? t.amount : t.kind === 'expense' ? -t.amount : t.amount);
   const currency = accountId && t.toAccountId === accountId ? (toAccount?.currency ?? t.currency) : t.currency;
   const neutral = contextual === null && t.kind === 'transfer';
+  // İleri tarihli işlem: bakiyede henüz yok, projeksiyonda vadesinde görünür
+  const planned = t.date > f.today;
   return (
     <li
       className={cn(
@@ -64,6 +66,7 @@ export function TransactionRow({ t, selected, onToggle, accountId }: Transaction
               ? t.description
               : (cat?.name ?? 'Kategorisiz')}
           {t.affectsLedger && <span className="text-cobalt-ink"> · cari</span>}
+          {planned && <span className="text-saffron-text md:hidden"> · planlı</span>}
         </div>
       </button>
       {!accountId && (
@@ -73,6 +76,11 @@ export function TransactionRow({ t, selected, onToggle, accountId }: Transaction
         </div>
       )}
       <div className="hidden w-28 shrink-0 md:block">
+        {planned && (
+          <Badge tone="warn" className="mr-1">
+            Planlı
+          </Badge>
+        )}
         {t.source === 'instrument' && <Badge tone="muted">Çek/senet</Badge>}
         {t.source === 'recurring' && <Badge tone="muted">Tekrarlayan</Badge>}
         {t.source === 'import' && <Badge tone="muted">Ekstre</Badge>}

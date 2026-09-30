@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router';
 import { motion } from 'motion/react';
-import { MagnifyingGlass, Plus } from '@phosphor-icons/react';
+import { MagnifyingGlass, Plus, UploadSimple } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
+import { useParamAction } from '@/app/useParamAction';
 import { PageHeader } from '@/ui/PageHeader';
 import { Panel } from '@/ui/Panel';
 import { Segmented } from '@/ui/Segmented';
@@ -15,6 +16,7 @@ import { amountInBase } from '@/domain/balances';
 import { normalizeTr } from '@/domain/nlp';
 import type { ID } from '@/domain/types';
 import { ContactSheet } from './ContactSheet';
+import { ContactImportSheet } from './ContactImportSheet';
 
 type Tab = 'all' | 'customer' | 'supplier';
 type Sort = 'balance' | 'overdue' | 'name' | 'delay';
@@ -25,6 +27,9 @@ export default function CarilerPage() {
   const [sort, setSort] = useState<Sort>('balance');
   const [q, setQ] = useState('');
   const [sheet, setSheet] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
+  useParamAction('yeni', () => setSheet(true));
+  useParamAction('ice-aktar', () => setImportOpen(true));
 
   const overdueBy = useMemo(() => {
     const map = new Map<ID, number>();
@@ -73,16 +78,21 @@ export default function CarilerPage() {
         kicker={`${f.contacts.filter((c) => !c.archived).length} cari`}
         title="Cariler"
         actions={
-          <Button variant="primary" magnetic icon={<Plus size={16} weight="bold" />} onClick={() => setSheet(true)}>
-            Cari
-          </Button>
+          <>
+            <Button variant="secondary" icon={<UploadSimple size={16} />} onClick={() => setImportOpen(true)}>
+              Excel'den aktar
+            </Button>
+            <Button variant="primary" magnetic icon={<Plus size={16} weight="bold" />} onClick={() => setSheet(true)}>
+              Cari
+            </Button>
+          </>
         }
       />
 
       <div className="mb-5 grid gap-3 sm:grid-cols-3">
         <SummaryCard label="Toplam alacak" value={totals.recv} tone="in" index={0} />
         <SummaryCard label="Toplam borç" value={totals.pay} tone="out" index={1} />
-        <SummaryCard label="Net işletme sermayesi" value={totals.recv - totals.pay} tone={totals.recv >= totals.pay ? 'in' : 'out'} index={2} />
+        <SummaryCard label="Net cari pozisyon" value={totals.recv - totals.pay} tone={totals.recv >= totals.pay ? 'in' : 'out'} index={2} />
       </div>
 
       <Panel reveal={0} padded={false}>
@@ -170,10 +180,29 @@ export default function CarilerPage() {
             );
           })}
         </ul>
-        {!rows.length && <p className="py-14 text-center text-sm text-muted">Eşleşen cari yok.</p>}
+        {!rows.length &&
+          (f.contacts.length ? (
+            <p className="py-14 text-center text-sm text-muted">Aramanızla eşleşen cari yok.</p>
+          ) : (
+            <div className="flex flex-col items-center gap-3 px-6 py-14 text-center">
+              <p className="text-sm font-semibold text-ink">Henüz cari yok</p>
+              <p className="max-w-sm text-xs leading-relaxed text-muted">
+                Müşteri ve tedarikçilerinizi tek tek ekleyebilir ya da muhasebe programınızdan aldığınız listeyi bir kerede aktarabilirsiniz.
+              </p>
+              <div className="mt-1 flex flex-wrap justify-center gap-2">
+                <Button variant="secondary" icon={<UploadSimple size={16} />} onClick={() => setImportOpen(true)}>
+                  Excel'den aktar
+                </Button>
+                <Button variant="primary" icon={<Plus size={16} weight="bold" />} onClick={() => setSheet(true)}>
+                  Cari ekle
+                </Button>
+              </div>
+            </div>
+          ))}
       </Panel>
 
       <ContactSheet open={sheet} onOpenChange={setSheet} />
+      <ContactImportSheet open={importOpen} onOpenChange={setImportOpen} />
     </div>
   );
 }

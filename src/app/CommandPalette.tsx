@@ -23,8 +23,9 @@ import {
   type Icon,
 } from '@phosphor-icons/react';
 import { parseEntry } from '@/domain/nlp';
+import { searchScore } from '@/domain/search';
 import { formatMoney, formatShort } from '@/domain/money';
-import { Kbd, Monogram } from '@/ui/bits';
+import { Kbd, MOD_KEY, Monogram } from '@/ui/bits';
 import { AccountIcon } from '@/ui/icons';
 import { formatDayMonth } from '@/ui/format';
 import { useFinance } from './finance';
@@ -156,7 +157,13 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   }
 
   return (
-    <Command loop className="flex max-h-[70vh] flex-col" shouldFilter>
+    <Command
+      loop
+      className="flex max-h-[70vh] flex-col"
+      shouldFilter
+      // Türkçe, kelime başı öncelikli arama; "kayda çevir" satırı her zaman en üstte
+      filter={(value, search, keywords) => (value.startsWith('__draft__') ? 2 : searchScore(value, search, keywords))}
+    >
       <div className="flex items-center gap-3 border-b border-line px-5">
         <MagnifyingGlass size={18} className="shrink-0 text-muted" />
         {rec.recording ? (
@@ -186,9 +193,12 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         <Kbd>Esc</Kbd>
       </div>
       <Command.List className="scrollbar-thin min-h-0 flex-1 overflow-y-auto p-2">
-        <Command.Empty className="px-4 py-10 text-center text-sm text-muted">
-          Eşleşen bir şey yok. Tutar içeren bir cümle yazarsanız kayda çeviririm.
-        </Command.Empty>
+        {/* Kayda çevirme önerisi varken "eşleşen yok" demek çelişkili olur */}
+        {!(showDraft && parsed) && (
+          <Command.Empty className="px-4 py-10 text-center text-sm text-muted">
+            Eşleşen bir şey yok. Tutar içeren bir cümle yazarsanız kayda çeviririm.
+          </Command.Empty>
+        )}
 
         {showDraft && parsed && (
           <Command.Group heading="Kayda çevir" className={groupClass} forceMount>
@@ -197,7 +207,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
               forceMount
               onSelect={() =>
                 openEntry({
-                  kind: parsed.kind,
+                  // Yapay zekâ da "kira ödemesi"ni cari olmadan 'pay' diyebilir: cari yoksa gelir/gider
+                  kind: parsed.contactId ? parsed.kind : parsed.kind === 'pay' ? 'expense' : parsed.kind === 'collect' ? 'income' : parsed.kind,
                   amount: parsed.amount,
                   currency: parsed.currency,
                   date: parsed.date,
@@ -264,7 +275,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
             <Sparkle size={18} weight="duotone" className="text-cobalt" />
             Asistana sor
             <span className="ml-auto">
-              <Kbd>⌘J</Kbd>
+              <Kbd>{MOD_KEY} J</Kbd>
             </span>
           </Command.Item>
         </Command.Group>

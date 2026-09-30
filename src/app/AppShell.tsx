@@ -6,7 +6,6 @@ import {
   CaretLineLeft,
   CaretLineRight,
   DotsThreeOutline,
-  LockSimple,
   MagnifyingGlass,
   Moon,
   Plus,
@@ -18,7 +17,7 @@ import {
 import { cn } from '@/ui/cn';
 import { LogoMark, Wordmark } from '@/ui/Logo';
 import { Button, IconButton } from '@/ui/Button';
-import { Kbd, Tip } from '@/ui/bits';
+import { Kbd, MOD_KEY, Tip } from '@/ui/bits';
 import { Sheet } from '@/ui/Overlay';
 import { formatShort } from '@/domain/money';
 import { useFinance } from './finance';
@@ -30,6 +29,9 @@ import { AssistantDrawer } from '@/features/asistan/AssistantDrawer';
 import { useShortcuts } from './shortcuts';
 import { formatDayMonth } from '@/ui/format';
 import { fetchLatestRates } from '@/data/rates';
+import { CloudBridge } from '@/cloud/CloudBridge';
+import { CloudStatusBadge } from '@/cloud/ui';
+import { DemoBanner } from './DemoBanner';
 
 function RailLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const Icon = item.icon;
@@ -142,19 +144,16 @@ function Rail() {
           {!collapsed && (
             <>
               <span className="flex-1 text-left font-medium">Asistan</span>
-              <Kbd>⌘J</Kbd>
+              <Kbd>{MOD_KEY} J</Kbd>
             </>
           )}
           {collapsed && <span className="sr-only">Asistan</span>}
         </button>
         <RailLink item={SETTINGS_ITEM} collapsed={collapsed} />
         <div className={cn('flex items-center gap-1 pt-2', collapsed ? 'flex-col' : 'justify-between px-1')}>
-          <Tip content="Tüm verileriniz yalnızca bu cihazda, tarayıcınızın veritabanında saklanır.">
-            <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-2xs text-muted">
-              <LockSimple size={13} weight="bold" className="text-inflow-text" />
-              {!collapsed && 'Veriler bu cihazda'}
-            </span>
-          </Tip>
+          <NavLink to="/ayarlar#bulut" viewTransition aria-label="Bulut senkronu durumu">
+            <CloudStatusBadge linked={Boolean(f.settings.cloud?.linked.includes(f.workspace.id)) && !f.settings.isDemo} collapsed={collapsed} />
+          </NavLink>
           <div className={cn('flex items-center', collapsed && 'flex-col')}>
             <ThemeButton />
             <IconButton label={collapsed ? 'Menüyü genişlet' : 'Menüyü daralt'} size="sm" onClick={toggleRail}>
@@ -214,7 +213,7 @@ function TopBar() {
             <span className="hidden sm:inline">Ara, git ya da yaz: </span>
             <span className="text-faint">“Yıldız'dan 45 bin tahsilat”</span>
           </span>
-          <Kbd className="ml-auto hidden sm:inline-flex">⌘K</Kbd>
+          <Kbd className="ml-auto hidden sm:inline-flex">{MOD_KEY} K</Kbd>
         </button>
         <div className="ml-auto flex items-center gap-1.5">
           <AlertsButton />
@@ -296,7 +295,8 @@ function MobileTab({ item }: { item: NavItem }) {
   );
 }
 
-let ratesChecked = false;
+/** Kur güncellemesi işletme + gün başına bir kez denenir (demodan çıkınca yeni işletme için tekrar). */
+let ratesCheckedFor: string | null = null;
 
 export function AppShell() {
   useShortcuts();
@@ -307,10 +307,11 @@ export function AppShell() {
   }, [location.pathname]);
   // Günlük kur güncellemesi (çevrimdışıysa son bilinen kur kullanılır)
   useEffect(() => {
-    if (ratesChecked || f.ratesDate === f.today) return;
-    ratesChecked = true;
+    const key = `${f.workspace.id}:${f.today}`;
+    if (ratesCheckedFor === key || f.ratesDate === f.today) return;
+    ratesCheckedFor = key;
     fetchLatestRates().catch(() => undefined);
-  }, [f.ratesDate, f.today]);
+  }, [f.ratesDate, f.today, f.workspace.id]);
   return (
     <div className="grain relative flex min-h-dvh">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2">
@@ -324,6 +325,9 @@ export function AppShell() {
           <TopBar />
         </div>
         <main id="main" className="mx-auto w-full max-w-[1480px] flex-1 px-4 pb-28 pt-4 sm:px-6 lg:px-10 lg:pb-16">
+          <div className="no-print">
+            <DemoBanner />
+          </div>
           <Outlet />
         </main>
       </div>
@@ -333,6 +337,7 @@ export function AppShell() {
       <CommandPalette />
       <EntrySheet />
       <AssistantDrawer />
+      <CloudBridge />
     </div>
   );
 }

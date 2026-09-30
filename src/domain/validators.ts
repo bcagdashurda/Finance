@@ -29,6 +29,36 @@ export function isValidIban(value: string): boolean {
   return mod97(ibanToNumeric(iban)) === 1;
 }
 
+/** EFT banka kodları (TR IBAN'ın 5–9. haneleri). */
+const TR_BANK_CODES: Record<string, string> = {
+  '00010': 'Ziraat Bankası',
+  '00012': 'Halkbank',
+  '00015': 'VakıfBank',
+  '00032': 'TEB',
+  '00046': 'Akbank',
+  '00059': 'Şekerbank',
+  '00062': 'Garanti BBVA',
+  '00064': 'İş Bankası',
+  '00067': 'Yapı Kredi',
+  '00099': 'ING',
+  '00103': 'Fibabanka',
+  '00111': 'QNB',
+  '00123': 'HSBC',
+  '00134': 'DenizBank',
+  '00203': 'Albaraka Türk',
+  '00205': 'Kuveyt Türk',
+  '00206': 'Türkiye Finans',
+  '00209': 'Ziraat Katılım',
+  '00210': 'Vakıf Katılım',
+};
+
+/** IBAN'dan bankayı tanır (yalnızca TR); bilinmiyorsa null. Yazarken de çalışır: ilk 9 karakter yeterli. */
+export function bankFromIban(value: string): string | null {
+  const iban = normalizeIban(value);
+  if (!iban.startsWith('TR') || iban.length < 9) return null;
+  return TR_BANK_CODES[iban.slice(4, 9)] ?? null;
+}
+
 /** TR IBAN: 5 haneli banka kodu + 1 rezerv (0) + 16 haneli hesap. */
 export function makeTrIban(bankCode: string, account: string): string {
   const body = bankCode.padStart(5, '0') + '0' + account.padStart(16, '0');

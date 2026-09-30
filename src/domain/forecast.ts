@@ -6,9 +6,9 @@ import type { PaymentBehavior } from './behavior';
 import { occurrences } from './recurrence';
 import type { VatPeriod } from './vat';
 import type { RunRate } from './runrate';
-import type { Adjustment, FinDocument, FlowDirection, Frequency, ID, Instrument, RecurringRule, TargetRef } from './types';
+import type { Adjustment, FinDocument, FlowDirection, Frequency, ID, Instrument, RecurringRule, TargetRef, Transaction } from './types';
 
-export type ForecastSource = 'document' | 'recurring' | 'instrument' | 'vat' | 'scenario' | 'runrate';
+export type ForecastSource = 'document' | 'recurring' | 'instrument' | 'vat' | 'scenario' | 'runrate' | 'planned';
 
 export interface ForecastItem {
   key: string;
@@ -65,6 +65,8 @@ export interface ForecastInput {
   scenario?: { adjustments: Adjustment[] };
   /** Tempo tahmini (henüz kesilmemiş faturalar, belgesiz rutin akışlar) */
   runRate?: RunRate | null;
+  /** İleri tarihli işlemler ("yarın kira ödemesi"): bugünkü bakiyede yok, vadesinde projeksiyona girer */
+  transactions?: Transaction[];
 }
 
 export interface ForecastResult {
@@ -178,6 +180,33 @@ function recurringItems(input: ForecastInput, to: ISODate): ForecastItem[] {
         probability: 1,
       });
     }
+  }
+  return items;
+}
+
+/** İleri tarihli gelir/gider işlemleri; kendi hesaplarınız arası transfer toplam nakdi değiştirmez. */
+function plannedItems(input: ForecastInput, to: ISODate): ForecastItem[] {
+  const items: ForecastItem[] = [];
+  for (const t of input.transactions ?? []) {
+    if (t.kind === 'transfer' || t.date <= input.today || t.date > to) continue;
+    const amount = toBase(t.amount, t.currency, input.rates);
+    items.push({
+      key: `tx:${t.id}`,
+      source: 'planned',
+      refId: t.id,
+      direction: t.kind === 'income' ? 'in' : 'out',
+      label: t.description || (t.kind === 'income' ? 'Planlı giriş' : 'Planlı ödeme'),
+      contactId: t.contactId,
+      categoryId: t.categoryId,
+      amount,
+      expectedAmount: amount,
+      dueDate: t.date,
+      expected: t.date,
+      optimistic: t.date,
+      pessimistic: t.date,
+      overdue: false,
+      probability: 1,
+    });
   }
   return items;
 }
@@ -323,7 +352,7 @@ export function buildForecast(input: ForecastInput): ForecastResult {
     const item = instrumentItem(ins, input);
     if (item) items.push(item);
   }
-  items.push(...recurringItems(input, to), ...vatItems(input), ...runRateItems(input, to));
+  items.push(...recurringItems(input, to), ...plannedItems(input, to), ...vatItems(input), ...runRateItems(input, to));
   if (input.scenario) items = applyScenario(items, input.scenario.adjustments, today, to);
 
   // Gün bazında değişimler

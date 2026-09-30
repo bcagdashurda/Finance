@@ -84,6 +84,12 @@ export async function updateWorkspace(id: ID, changes: Partial<Workspace>) {
   await db.workspaces.update(id, { ...changes, updatedAt: nowStamp() });
 }
 
+/** İşletme düzeyindeki ayar: değeri yazar ve işletmenin sürümünü ilerletir (bulut senkronu için). */
+export async function setWorkspaceSetting<T>(key: string, value: T) {
+  await setSetting(key, value);
+  if (activeWorkspaceId) await db.workspaces.update(activeWorkspaceId, { updatedAt: nowStamp() });
+}
+
 /** Çalışma alanını ve tüm verisini siler. */
 export async function deleteWorkspace(id: ID) {
   await db.transaction('rw', [db.workspaces, db.settings, ...WORKSPACE_TABLES.map((t) => db[t])], async () => {
@@ -120,6 +126,13 @@ export const updateCategory = (id: ID, changes: Partial<Category>) => patch(db.c
 
 export const createContact = (input: Scoped<Contact>) => insert(db.contacts, input);
 export const updateContact = (id: ID, changes: Partial<Contact>) => patch(db.contacts, id, changes);
+
+/** Toplu cari aktarımı: tek işlemde (yarıda kesilirse hiçbiri yazılmaz). */
+export async function importContacts(inputs: Array<Scoped<Contact>>): Promise<number> {
+  const rows = inputs.map((i) => scoped<Contact>(i));
+  await db.contacts.bulkAdd(rows);
+  return rows.length;
+}
 
 export async function deleteOrArchiveContact(id: ID): Promise<'deleted' | 'archived'> {
   const used =

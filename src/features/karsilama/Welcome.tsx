@@ -1,12 +1,16 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from 'motion/react';
 import { toast } from 'sonner';
-import { ArrowRight, LockSimple, Waves, Signature, Microphone } from '@phosphor-icons/react';
+import { ArrowRight, LockSimple, Waves, Signature, Microphone, CloudArrowDown } from '@phosphor-icons/react';
+import { db } from '@/data/db';
+import { SETTINGS_KEYS } from '@/data/keys';
+import { ensureClient, envCloudConfig, saveCloudConfig, testConnection, useCloud } from '@/cloud/store';
+import { CloudAuthForm, RemoteWorkspacePicker, Steps } from '@/cloud/ui';
 import { loadDemo, setupWorkspace } from '@/data/load';
 import { LogoMark, Wordmark } from '@/ui/Logo';
 import { Button } from '@/ui/Button';
 import { Modal } from '@/ui/Overlay';
-import { Field, MoneyInput, TextInput } from '@/ui/Field';
+import { Field, MoneyInput, TextInput, focusFirstInvalid } from '@/ui/Field';
 import { ringPath, hypotrochoidPath } from '@/charts/guilloche';
 import { isValidTaxId } from '@/domain/validators';
 import { isCoarsePointer } from '@/ui/cn';
@@ -14,7 +18,22 @@ import { isCoarsePointer } from '@/ui/cn';
 const LINES = ['Nakdinizin', '13 hafta sonrasını', 'bugünden görün.'];
 
 export function Welcome() {
-  const [setupOpen, setSetupOpen] = useState(false);
+  // Demodan "Kendi işletmemi kur" ile gelindiyse kurulum doğrudan açılır
+  const [setupOpen, setSetupOpen] = useState(() => {
+    try {
+      return sessionStorage.getItem('mizan:kurulum') === '1';
+    } catch {
+      return false;
+    }
+  });
+  useEffect(() => {
+    try {
+      sessionStorage.removeItem('mizan:kurulum');
+    } catch {
+      /* depolama kapalı olabilir */
+    }
+  }, []);
+  const [cloudOpen, setCloudOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const px = useMotionValue(0);
   const py = useMotionValue(0);
@@ -45,7 +64,7 @@ export function Welcome() {
         </div>
         <span className="inline-flex items-center gap-1.5 rounded-full border border-line bg-surface/60 px-3 py-1.5 text-2xs text-muted backdrop-blur">
           <LockSimple size={12} weight="bold" className="text-inflow-text" />
-          Verileriniz yalnızca bu cihazda saklanır
+          Verileriniz cihazınızda · bulut isteğe bağlı
         </span>
       </header>
 
@@ -95,6 +114,16 @@ export function Welcome() {
               Kendi işletmemi kur
             </Button>
           </motion.div>
+          <motion.button
+            type="button"
+            onClick={() => setCloudOpen(true)}
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            transition={{ delay: 1.1 }}
+            className="mt-4 inline-flex items-center gap-1.5 text-sm text-cobalt-ink underline-offset-4 hover:underline"
+          >
+            <CloudArrowDown size={16} /> Başka cihazda kullanıyorum: buluttaki işletmeme bağlan
+          </motion.button>
           <motion.ul
             className="mt-12 grid max-w-xl gap-4 sm:grid-cols-3"
             initial="hidden"
@@ -123,6 +152,7 @@ export function Welcome() {
       </main>
 
       <SetupModal open={setupOpen} onOpenChange={setSetupOpen} />
+      <CloudConnectModal open={cloudOpen} onOpenChange={setCloudOpen} />
     </div>
   );
 }
@@ -226,6 +256,64 @@ function WelcomeArt({ px, py }: { px: MotionValue<number>; py: MotionValue<numbe
   );
 }
 
+/** İkinci cihaz: Supabase bağlantısı → giriş → buluttaki işletmeyi indir. */
+function CloudConnectModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
+  const session = useCloud((s) => s.session);
+  const client = useCloud((s) => s.client);
+  const [url, setUrl] = useState('');
+  const [key, setKey] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    const env = envCloudConfig();
+    if (env) {
+      ensureClient(env);
+      return;
+    }
+    void db.settings.get(SETTINGS_KEYS.cloud).then((row) => {
+      const cfg = row?.value as { url?: string; anonKey?: string } | undefined;
+      if (cfg?.url && cfg.anonKey) ensureClient({ url: cfg.url, anonKey: cfg.anonKey });
+    });
+  }, [open]);
+
+  const step = !client ? 0 : !session ? 1 : 2;
+  return (
+    <Modal open={open} onOpenChange={onOpenChange} title="Buluttaki işletmeme bağlan" description="Başka bir cihazda kullandığınız Mizan verilerini bu cihaza indirin." className="max-w-xl">
+      <Steps steps={['Bağlantı', 'Giriş', 'İşletme']} current={step} />
+      {step === 0 && (
+        <div className="space-y-3">
+          <Field label="Supabase Project URL">{(p) => <TextInput {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://abcd1234.supabase.co" />}</Field>
+          <Field label="anon public anahtarı">{(p) => <TextInput {...p} value={key} onChange={(e) => setKey(e.target.value)} className="num" />}</Field>
+          <div className="flex justify-end">
+            <Button
+              variant="primary"
+              loading={busy}
+              disabled={!url || !key}
+              onClick={async () => {
+                setBusy(true);
+                try {
+                  await testConnection(url, key);
+                  await saveCloudConfig({ url: url.trim().replace(/\/$/, ''), anonKey: key.trim(), linked: [] });
+                  ensureClient({ url: url.trim().replace(/\/$/, ''), anonKey: key.trim() });
+                } catch (e) {
+                  toast.error('Bağlanılamadı', { description: e instanceof Error ? e.message : '' });
+                } finally {
+                  setBusy(false);
+                }
+              }}
+            >
+              Bağlan
+            </Button>
+          </div>
+        </div>
+      )}
+      {step === 1 && <CloudAuthForm />}
+      {step === 2 && <RemoteWorkspacePicker localIds={[]} onDownloaded={() => onOpenChange(false)} />}
+    </Modal>
+  );
+}
+
 function SetupModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const [name, setName] = useState('');
   const [legalName, setLegalName] = useState('');
@@ -239,7 +327,7 @@ function SetupModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
     if (!name.trim()) e.name = 'İşletmenizin adını yazın';
     if (taxId && !isValidTaxId(taxId)) e.taxId = 'Vergi numarası geçersiz görünüyor (10 haneli VKN ya da 11 haneli TCKN)';
     setErrors(e);
-    if (Object.keys(e).length) return;
+    if (Object.keys(e).length) return focusFirstInvalid();
     setSaving(true);
     try {
       await setupWorkspace({ name: name.trim(), legalName: legalName.trim() || undefined, taxId: taxId || undefined, minCashBalance: minCash ?? 0 });
@@ -278,7 +366,14 @@ function SetupModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: b
           {(p) => <TextInput {...p} autoFocus value={name} onChange={(e) => setName(e.target.value)} placeholder="Deniz Ambalaj" />}
         </Field>
         <Field label="Ticari unvan" optional>
-          {(p) => <TextInput {...p} value={legalName} onChange={(e) => setLegalName(e.target.value)} placeholder="Deniz Ambalaj San. ve Tic. Ltd. Şti." />}
+          {(p) => (
+            <TextInput
+              {...p}
+              value={legalName}
+              onChange={(e) => setLegalName(e.target.value)}
+              placeholder={`${name.trim() || 'Deniz Ambalaj'} San. ve Tic. Ltd. Şti.`}
+            />
+          )}
         </Field>
         <Field label="Vergi numarası" optional error={errors.taxId}>
           {(p) => <TextInput {...p} inputMode="numeric" value={taxId} onChange={(e) => setTaxId(e.target.value.replace(/\D/g, '').slice(0, 11))} placeholder="10 haneli VKN" />}

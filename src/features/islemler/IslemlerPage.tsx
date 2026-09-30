@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { DownloadSimple, FunnelSimple, MagnifyingGlass, Plus, Trash, UploadSimple, X } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { useUI } from '@/app/ui-store';
+import { useParamAction } from '@/app/useParamAction';
 import { PageHeader } from '@/ui/PageHeader';
 import { Panel } from '@/ui/Panel';
 import { Segmented } from '@/ui/Segmented';
@@ -40,6 +41,7 @@ export default function IslemlerPage() {
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [limit, setLimit] = useState(PAGE);
   const [importOpen, setImportOpen] = useState(false);
+  useParamAction('ice-aktar', () => setImportOpen(true));
   const sentinel = useRef<HTMLDivElement>(null);
 
   const setParam = (key: string, value: string) => {
@@ -49,17 +51,19 @@ export default function IslemlerPage() {
     setParams(next, { replace: true });
   };
 
+  // Bugünde biten dönemler ileri tarihli (planlı) kayıtları da gösterir: girilen kayıt listede kaybolmasın
   const range: [ISODate, ISODate] = useMemo(() => {
     const t = f.today;
+    const future = '9999-12-31';
     switch (period) {
       case 'month':
-        return [startOfMonth(t), t];
+        return [startOfMonth(t), future];
       case 'last':
         return [startOfMonth(addMonths(t, -1)), endOfMonth(addMonths(t, -1))];
       case '90':
-        return [addDays(t, -90), t];
+        return [addDays(t, -90), future];
       case 'year':
-        return [`${t.slice(0, 4)}-01-01`, t];
+        return [`${t.slice(0, 4)}-01-01`, future];
       default:
         return ['0000-01-01', '9999-12-31'];
     }
@@ -102,11 +106,12 @@ export default function IslemlerPage() {
     let inflow = 0;
     let outflow = 0;
     for (const t of rows) {
+      if (t.date > f.today) continue; // planlı kayıtlar gerçekleşmiş toplamlara girmez
       if (t.kind === 'income') inflow += amountInBase(t.amount, t.rateToBase);
       else if (t.kind === 'expense') outflow += amountInBase(t.amount, t.rateToBase);
     }
     return { inflow, outflow, net: inflow - outflow };
-  }, [rows]);
+  }, [rows, f.today]);
 
   const groups = useMemo(() => {
     const out: Array<{ date: ISODate; items: Transaction[]; net: number }> = [];

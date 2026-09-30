@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { guessMapping, importHash, normalizeRows, parseDateCell, suggestCategory } from './statement';
+import { CATEGORY_KEYWORDS } from './nlp';
 
 describe('parseDateCell', () => {
   it.each([
@@ -78,5 +79,25 @@ describe('suggestCategory', () => {
   it('falls back to keyword categories of the right direction', () => {
     expect(suggestCategory('OPET AKARYAKIT ISTASYONU', -100, ctx)).toMatchObject({ categoryId: 'yakit', source: 'keyword' });
     expect(suggestCategory('OPET', 100, ctx).categoryId).toBeUndefined();
+  });
+
+  it('categorises typical Turkish bank statement lines with the system keyword set', () => {
+    const sys = {
+      categories: Object.entries(CATEGORY_KEYWORDS).map(([icon, keywords]) => ({ id: icon, kind: 'expense' as const, keywords })),
+      contacts: [],
+      rules: [],
+    };
+    const cat = (d: string) => suggestCategory(d, -100, sys).categoryId;
+    expect(cat('SGK PRIM TAHSILATI 202608')).toBe('bank');
+    expect(cat('MAAS ODEMESI EYLUL')).toBe('users');
+    expect(cat('TURK TELEKOM FATURA')).toBe('cloud');
+    expect(cat('TURKCELL SUPERONLINE')).toBe('cloud');
+    expect(cat('ENERJISA ELEKTRIK FATURASI')).toBe('lightning');
+    expect(cat('IGDAS DOGALGAZ')).toBe('lightning');
+    expect(cat('SHELL 34 ABC 123')).toBe('car');
+    expect(cat('HGS YUKLEME')).toBe('car');
+    expect(cat('HESAP ISLETIM UCRETI')).toBe('credit-card');
+    expect(cat('EFT UCRETI BSMV')).toBe('credit-card');
+    expect(cat('KDV TAHAKKUK ODEMESI')).toBe('receipt');
   });
 });
