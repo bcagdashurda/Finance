@@ -103,6 +103,33 @@ export function useGettingStarted() {
   return { steps, doneCount, total: steps.length, requiredDone: required.every((s) => s.done), visible, hide, empty: f.accounts.length === 0 };
 }
 
+/** Zorunlu adımlar bitince: yalnızca isteğe bağlı adımlar kaldığında Kokpit'in ilk ekranını kaplamayan tek satır. */
+export function GettingStartedStrip({ state, className }: { state: ReturnType<typeof useGettingStarted>; className?: string }) {
+  const rest = state.steps.filter((s) => !s.done);
+  return (
+    <Panel reveal={0} padded={false} className={cn('flex items-center gap-3 px-4 py-3 sm:gap-4 sm:px-5', className)} aria-label="Kurulum">
+      <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-inflow-soft text-inflow-text">
+        <Check size={15} weight="bold" />
+      </span>
+      <div className="min-w-0 flex-1 text-sm">
+        <span className="font-semibold text-ink">Temel kurulum tamam</span>
+        <span className="text-muted"> · isteğe bağlı: </span>
+        {rest.map((s, i) => (
+          <span key={s.key}>
+            {i > 0 && <span className="text-muted">, </span>}
+            <button type="button" onClick={s.run} className="font-medium text-cobalt-ink underline-offset-2 hover:underline">
+              {s.title.replace(/^./, (c) => c.toLocaleLowerCase('tr'))}
+            </button>
+          </span>
+        ))}
+      </div>
+      <IconButton label="Rehberi gizle" size="sm" onClick={state.hide}>
+        <X size={14} />
+      </IconButton>
+    </Panel>
+  );
+}
+
 export function GettingStarted({ state, className }: { state: ReturnType<typeof useGettingStarted>; className?: string }) {
   const { steps, doneCount, total, hide, empty } = state;
   const next = steps.find((s) => !s.done);

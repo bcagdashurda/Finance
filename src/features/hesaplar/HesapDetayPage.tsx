@@ -142,7 +142,7 @@ export default function HesapDetayPage() {
         <span />
       </Modal>
 
-      <div className="grid gap-5 lg:grid-cols-[1fr_380px]">
+      <div className="grid grid-cols-1 gap-5 lg:grid-cols-[minmax(0,1fr)_380px]">
         <Panel reveal={0}>
           <PanelHeader
             title="Bakiye"

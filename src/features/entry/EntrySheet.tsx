@@ -9,6 +9,7 @@ import { useFinance, type Finance } from '@/app/finance';
 import { useUI, type EntryDraft, type EntryKind } from '@/app/ui-store';
 import { Sheet } from '@/ui/Overlay';
 import { Segmented } from '@/ui/Segmented';
+import { ScrollChips } from '@/ui/ScrollChips';
 import { DateInput, Field, MoneyInput, Select, TextArea, TextInput, focusFirstInvalid } from '@/ui/Field';
 import { Combobox, type ComboOption } from '@/ui/Combobox';
 import { Button } from '@/ui/Button';
@@ -399,7 +400,7 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
       }}
     >
       {!editing && (
-        <div className="-mx-1 overflow-x-auto px-1 pb-1">
+        <ScrollChips activeKey={s.kind} className="-mx-1 px-1 pb-1">
           <Segmented
             label="Kayıt türü"
             size="sm"
@@ -410,7 +411,7 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
             }}
             options={KIND_OPTIONS.map((o) => ({ ...o, title: KIND_HELP[o.value] }))}
           />
-        </div>
+        </ScrollChips>
       )}
       <div className="-mt-2 flex items-start justify-between gap-3">
         <p className="text-xs text-muted">{KIND_HELP[s.kind]}</p>

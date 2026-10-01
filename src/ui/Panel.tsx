@@ -51,7 +51,7 @@ export function PanelHeader({ title, description, actions, className, id }: Pane
         </h2>
         {description && <p className="mt-0.5 text-xs text-muted">{description}</p>}
       </div>
-      {actions && <div className="flex shrink-0 items-center gap-1.5">{actions}</div>}
+      {actions && <div className="flex max-w-full shrink-0 flex-wrap items-center gap-1.5">{actions}</div>}
     </header>
   );
 }

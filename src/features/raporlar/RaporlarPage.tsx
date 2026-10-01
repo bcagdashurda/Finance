@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link, useSearchParams } from 'react-router';
 import { motion } from 'motion/react';
 import { toast } from 'sonner';
@@ -22,18 +22,20 @@ import { budgetVsActual, fxExposure, profitLoss, vatHistory, type Basis, type Pn
 import { formatMoney, formatShort, CURRENCY_META } from '@/domain/money';
 import type { ID } from '@/domain/types';
 import { downloadXlsx } from '@/data/export';
+import { ScrollChips, useScrollEdges } from '@/ui/ScrollChips';
 
 type ReportId = 'pnl' | 'cashflow' | 'category' | 'aging' | 'budget' | 'kdv' | 'fx';
 type Period = 'ytd' | '12m' | 'last-year' | 'quarter';
 
-const REPORTS: Array<{ id: ReportId; label: string; icon: React.ReactNode; desc: string }> = [
-  { id: 'pnl', label: 'Gelir-gider tablosu', icon: <Table size={18} />, desc: 'Nakit ya da tahakkuk esasına göre aylık kâr/zarar' },
-  { id: 'cashflow', label: 'Nakit akış tablosu', icon: <Wallet size={18} />, desc: 'Açılış, giriş, çıkış ve kapanış bakiyeleri' },
-  { id: 'category', label: 'Kategori analizi', icon: <ChartBar size={18} />, desc: 'Paranın nereden gelip nereye gittiği' },
-  { id: 'aging', label: 'Cari yaşlandırma', icon: <Clock size={18} />, desc: 'Alacak ve borçların vade aşımı' },
-  { id: 'budget', label: 'Bütçe ve gerçekleşen', icon: <Target size={18} />, desc: 'Bu ay bütçe tüketimi ve ay sonu tahmini' },
-  { id: 'kdv', label: 'KDV özeti', icon: <Receipt size={18} />, desc: 'Hesaplanan, indirilecek, devreden KDV' },
-  { id: 'fx', label: 'Döviz pozisyonu', icon: <CurrencyDollar size={18} />, desc: 'Kur riskine açık net pozisyon' },
+// short: sekmedeki ad (1366 px'te yedi sekme tek satıra sığsın); label: çıktı başlığı ve açıklama satırı
+const REPORTS: Array<{ id: ReportId; label: string; short: string; icon: React.ReactNode; desc: string }> = [
+  { id: 'pnl', label: 'Gelir-gider tablosu', short: 'Gelir-gider', icon: <Table size={18} />, desc: 'Nakit ya da tahakkuk esasına göre aylık kâr/zarar' },
+  { id: 'cashflow', label: 'Nakit akış tablosu', short: 'Nakit tablosu', icon: <Wallet size={18} />, desc: 'Açılış, giriş, çıkış ve kapanış bakiyeleri' },
+  { id: 'category', label: 'Kategori analizi', short: 'Kategoriler', icon: <ChartBar size={18} />, desc: 'Paranın nereden gelip nereye gittiği' },
+  { id: 'aging', label: 'Cari yaşlandırma', short: 'Yaşlandırma', icon: <Clock size={18} />, desc: 'Alacak ve borçların vade aşımı' },
+  { id: 'budget', label: 'Bütçe ve gerçekleşen', short: 'Bütçe', icon: <Target size={18} />, desc: 'Bu ay bütçe tüketimi ve ay sonu tahmini' },
+  { id: 'kdv', label: 'KDV özeti', short: 'KDV', icon: <Receipt size={18} />, desc: 'Hesaplanan, indirilecek, devreden KDV' },
+  { id: 'fx', label: 'Döviz pozisyonu', short: 'Döviz', icon: <CurrencyDollar size={18} />, desc: 'Kur riskine açık net pozisyon' },
 ];
 
 export default function RaporlarPage() {
@@ -136,31 +138,44 @@ export default function RaporlarPage() {
         }
       />
 
-      <div className="grid gap-5 lg:grid-cols-[260px_1fr]">
-        <nav className="no-print space-y-1" aria-label="Raporlar">
-          {REPORTS.map((r, i) => (
-            <motion.button
-              key={r.id}
-              type="button"
-              initial={{ opacity: 0, x: -10 }}
-              animate={{ opacity: 1, x: 0 }}
-              transition={{ delay: 0.05 * i }}
-              onClick={() => setParams({ rapor: r.id }, { replace: true })}
-              className={cn(
-                'relative flex w-full items-start gap-3 rounded-[14px] px-3.5 py-3 text-left transition-colors',
-                report === r.id ? 'bg-surface text-ink shadow-[0_0_0_1px_var(--line)]' : 'text-muted hover:bg-surface/60 hover:text-ink',
-              )}
-            >
-              {report === r.id && <motion.span layoutId="report-tick" className="absolute left-0 top-3 h-6 w-[3px] rounded-full bg-cobalt" />}
-              <span className={cn('mt-0.5', report === r.id && 'text-cobalt')}>{r.icon}</span>
-              <span>
-                <span className="block text-sm font-medium">{r.label}</span>
-                <span className="block text-2xs text-muted">{r.desc}</span>
-              </span>
-            </motion.button>
-          ))}
-        </nav>
+      {/* Rapor seçimi üstte: tablolar ve grafikler sayfanın tam genişliğini kullanır
+          (yan sütundayken 12 aylık tablo 1920 px'te bile sığmıyor, "Toplam" kesiliyordu). */}
+      <nav className="no-print mb-5" aria-label="Raporlar">
+        <ScrollChips activeKey={report} className="-mx-1 px-1 pb-1">
+          <div className="flex w-max gap-1 rounded-[16px] bg-sunken p-1">
+            {REPORTS.map((r) => {
+              const active = report === r.id;
+              return (
+                <button
+                  key={r.id}
+                  type="button"
+                  aria-current={active ? 'true' : undefined}
+                  aria-label={r.label}
+                  title={`${r.label}: ${r.desc}`}
+                  onClick={() => setParams({ rapor: r.id }, { replace: true })}
+                  className={cn('relative z-0 flex h-10 items-center gap-2 whitespace-nowrap rounded-[12px] px-3.5 text-sm font-medium transition-colors', active ? 'text-ink' : 'text-muted hover:text-ink')}
+                >
+                  {active && (
+                    <motion.span
+                      layoutId="report-tab"
+                      className="absolute inset-0 -z-10 rounded-[12px] bg-surface shadow-[0_1px_2px_rgb(15_26_61/0.08),0_0_0_1px_var(--line)]"
+                      transition={{ type: 'spring', stiffness: 500, damping: 38 }}
+                    />
+                  )}
+                  {/* 1024–1280 arası simgesiz: yedi sekme tek satıra sığar */}
+                  <span className={cn('shrink-0 max-xl:lg:hidden', active && 'text-cobalt')}>{r.icon}</span>
+                  {r.short}
+                </button>
+              );
+            })}
+          </div>
+        </ScrollChips>
+        <p className="mt-2 text-xs text-muted">
+          <span className="font-medium text-ink-2">{current.label}</span> · {current.desc}
+        </p>
+      </nav>
 
+      <div>
         <div key={report} className="min-w-0 space-y-5">
           {(report === 'pnl' || report === 'cashflow') && <PnlView pnl={pnl} basis={basis} setBasis={setBasis} cashflow={report === 'cashflow'} from={from} to={to} catName={catName} />}
           {report === 'category' && <CategoryView pnl={pnl} catName={catName} />}
@@ -240,6 +255,33 @@ function PnlView({
     ? pnl.months.map((m) => totalInBase(active, balancesByAccount(active, f.transactions, addMonths(`${m}-01`, 0) > from ? previousDay(`${m}-01`) : previousDay(from)), f.rates))
     : [];
   const closings = cashflow ? pnl.months.map((m) => totalInBase(active, balancesByAccount(active, f.transactions, endOfMonth(`${m}-01`) < to ? endOfMonth(`${m}-01`) : to), f.rates)) : [];
+  const scroller = useRef<HTMLDivElement>(null);
+  useScrollEdges(scroller);
+  // Yuvarlanan 12 ayda önemli olan son aylar: tablo sığmıyorsa en sağdan (güncel ay + Toplam) başla.
+  // Sütunlar yazı tipi/veri gelince genişleyebilir; kullanıcı kendisi kaydırana dek sağda tutulur.
+  useLayoutEffect(() => {
+    const el = scroller.current;
+    const table = el?.firstElementChild;
+    if (!el || !table) return;
+    let touched = false;
+    const stick = () => {
+      if (!touched && el.scrollWidth > el.clientWidth) el.scrollLeft = el.scrollWidth;
+    };
+    const mark = () => (touched = true);
+    stick();
+    const ro = new ResizeObserver(stick);
+    ro.observe(table);
+    ro.observe(el);
+    el.addEventListener('pointerdown', mark);
+    el.addEventListener('wheel', mark, { passive: true });
+    el.addEventListener('keydown', mark);
+    return () => {
+      ro.disconnect();
+      el.removeEventListener('pointerdown', mark);
+      el.removeEventListener('wheel', mark);
+      el.removeEventListener('keydown', mark);
+    };
+  }, [from, to]);
 
   return (
     <>
@@ -273,17 +315,23 @@ function PnlView({
         <FlowBars label="Aylık gelir ve gider" months={pnl.months.map((m, i) => ({ key: m, inflow: pnl.totals.income[i]!, outflow: pnl.totals.expense[i]!, net: pnl.totals.net[i]! }))} height={230} />
       </Panel>
       <Panel reveal={1} padded={false}>
-        <div className="scrollbar-thin overflow-x-auto">
+        {/* Sığmadığında: "Kalem" solda, "Toplam" sağda sabit; yalnızca aylar kayar ve açılışta en güncel aylar görünür */}
+        <div ref={scroller} className="scroll-table scrollbar-thin overflow-x-auto">
           <table className="w-full min-w-[900px] text-xs">
             <thead>
-              <tr className="border-b border-line text-muted">
-                <th className="sticky left-0 z-[1] bg-surface px-5 py-3 text-left font-medium">Kalem</th>
+              <tr className="border-b border-line bg-surface text-muted">
+                <th className="stick-l sticky left-0 z-[1] bg-inherit px-3 py-3 text-left font-medium sm:px-5">Kalem</th>
                 {pnl.months.map((m) => (
-                  <th key={m} className="px-2 py-3 text-right font-medium capitalize">
+                  <th
+                    key={m}
+                    title={m === monthKey(f.today) ? `Ay devam ediyor: ${formatDate(f.today)} itibarıyla` : undefined}
+                    className={cn('px-2 py-3 text-right font-medium capitalize', m === monthKey(f.today) && 'underline decoration-dotted underline-offset-4')}
+                  >
                     {formatMonthShort(m)}
                   </th>
                 ))}
-                <th className="px-5 py-3 text-right font-semibold text-ink">Toplam</th>
+                {/* Telefonda iki sabit sütun aylara yer bırakmıyor: Toplam yalnızca sm üstünde sabit */}
+                <th className="stick-r z-[1] bg-inherit px-5 py-3 text-right font-semibold text-ink sm:sticky sm:right-0">Toplam</th>
               </tr>
             </thead>
             <tbody>
@@ -319,8 +367,9 @@ function previousDay(iso: ISODate): ISODate {
 function Section({ label }: { label: string }) {
   return (
     <tr>
-      <td colSpan={99} className="sticky left-0 bg-surface-2 px-5 pb-1.5 pt-4 text-2xs font-semibold text-muted">
-        {label}
+      {/* Satır boyu hücre yapışamaz (kendi kapsayıcısını doldurur); etiketi içindeki öğe sabitlenir */}
+      <td colSpan={99} className="bg-surface-2 pb-1.5 pt-4 text-2xs font-semibold text-muted">
+        <span className="sticky left-0 inline-block px-5">{label}</span>
       </td>
     </tr>
   );
@@ -330,11 +379,14 @@ function Row({ label, values, total, strong, tone, big, muted, categoryId }: { l
   const f = useFinance();
   const cat = categoryId ? f.categoriesById.get(categoryId) : undefined;
   return (
-    <tr className={cn('border-b border-line transition-colors hover:bg-surface-2', strong && 'bg-surface-2/60', big && 'text-sm')}>
-      <td className={cn('sticky left-0 z-[1] bg-inherit px-5 py-2', strong ? 'font-semibold' : 'text-ink-2', muted && 'text-muted')}>
+    // Satır zemini opak: sabit hücreler (bg-inherit) kayan rakamları örtsün
+    <tr className={cn('border-b border-line transition-colors hover:bg-surface-2', strong ? 'bg-[color-mix(in_oklab,var(--surface-2)_60%,var(--surface))]' : 'bg-surface', big && 'text-sm')}>
+      <td className={cn('stick-l sticky left-0 z-[1] bg-inherit px-3 py-2 sm:px-5', strong ? 'font-semibold' : 'text-ink-2', muted && 'text-muted')}>
         <span className="flex items-center gap-2">
           {cat && <CategoryIcon name={cat.icon} size={13} className="shrink-0" />}
-          <span className="truncate">{label}</span>
+          <span className="block max-w-[108px] truncate sm:max-w-[190px]" title={label}>
+            {label}
+          </span>
         </span>
       </td>
       {values.map((v, i) => (
@@ -342,7 +394,9 @@ function Row({ label, values, total, strong, tone, big, muted, categoryId }: { l
           {v ? formatMoney(v, 'TRY', { decimals: 0 }).replace('₺', '') : '—'}
         </td>
       ))}
-      <td className={cn('num px-5 py-2 text-right font-semibold', tone === 'in' && 'text-inflow-text', tone === 'out' && 'text-outflow-text')}>{formatMoney(total, 'TRY', { decimals: 0 })}</td>
+      <td className={cn('stick-r num z-[1] bg-inherit px-5 py-2 text-right font-semibold sm:sticky sm:right-0', tone === 'in' && 'text-inflow-text', tone === 'out' && 'text-outflow-text')}>
+        {formatMoney(total, 'TRY', { decimals: 0 })}
+      </td>
     </tr>
   );
 }
@@ -499,7 +553,7 @@ function KdvView({ from, to }: { from: ISODate; to: ISODate }) {
         <PanelHeader title="KDV özeti" description="Belgelerdeki KDV tutarlarından hesaplanır; beyanname yerine geçmez, mali müşavirinizle doğrulayın." />
       </div>
       <div className="overflow-x-auto">
-        <table className="w-full min-w-[720px] text-sm">
+        <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-y border-line text-2xs text-muted">
               <th className="px-6 py-2.5 text-left font-medium">Dönem</th>

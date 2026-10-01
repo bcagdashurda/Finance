@@ -70,7 +70,7 @@ export default function AyarlarPage() {
   return (
     <div>
       <PageHeader kicker="İşletme, yapay zekâ, bulut, güvenlik ve yedek" title="Ayarlar" />
-      <div className="grid gap-6 lg:grid-cols-[220px_1fr]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav className="sticky top-24 hidden h-fit space-y-1 lg:block" aria-label="Ayar bölümleri">
           {SECTIONS.map((s) => (
             <a key={s.id} href={`#${s.id}`} className="flex items-center gap-2.5 rounded-[12px] px-3 py-2 text-sm text-muted transition-colors hover:bg-surface hover:text-ink">
@@ -223,15 +223,20 @@ function AiSection() {
       }
     >
       <div className="mb-4 flex flex-wrap items-center gap-3">
-        <Segmented
-          label="Anahtar kaynağı"
-          value={isCloud ? 'cloud' : 'device'}
-          onChange={(v) => void save({ provider: v === 'cloud' ? 'cloud' : baseUrl.includes('groq.com') ? 'groq' : 'openai-compatible' })}
-          options={[
-            { value: 'device', label: 'Anahtar bu cihazda' },
-            { value: 'cloud', label: 'Anahtar bulut sunucusunda' },
-          ]}
-        />
+        <span className="flex items-center gap-2">
+          <span className="text-xs font-medium text-muted" aria-hidden>
+            Anahtar
+          </span>
+          <Segmented
+            label="Anahtar nerede duruyor"
+            value={isCloud ? 'cloud' : 'device'}
+            onChange={(v) => void save({ provider: v === 'cloud' ? 'cloud' : baseUrl.includes('groq.com') ? 'groq' : 'openai-compatible' })}
+            options={[
+              { value: 'device', label: 'Bu cihazda' },
+              { value: 'cloud', label: 'Bulut sunucusunda' },
+            ]}
+          />
+        </span>
         <span className="text-2xs text-muted">{isCloud ? 'Ekip ve yayındaki site için önerilir: anahtar tarayıcıya hiç inmez.' : 'En basit yol: anahtarı yapıştırın, bu cihazda çalışır.'}</span>
       </div>
 

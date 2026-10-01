@@ -43,6 +43,46 @@ test('raporların hepsi', async ({ page }, info) => {
   expect(errors, errors.join('\n')).toEqual([]);
 });
 
+/**
+ * Sayfa taşmasa da içerik kendi kutusunda sıkışabilir. 1024 px'te bulunan hatalar:
+ * Kokpit'te rakam kesikti, Cariler'de ad sütunu ~10 px'e düşmüştü, raporda "Toplam" yarım kalıyordu.
+ */
+test('sıkışma yok: Kokpit rakamları, cari adları, rapor Toplam sütunu', async ({ page }) => {
+  await openDemo(page);
+  await page.waitForTimeout(2500); // sayaç animasyonu
+  const kokpit = await page.evaluate(() => {
+    const hero = document.querySelector('main section.panel')!;
+    const hr = hero.getBoundingClientRect();
+    const big = hero.querySelector('div.display')!;
+    const range = document.createRange();
+    range.selectNodeContents(big);
+    const kpis = [...hero.querySelectorAll('a .display')].map((v) => {
+      const a = v.closest('a')!.getBoundingClientRect();
+      const r = v.getBoundingClientRect();
+      return { text: v.textContent, fits: r.left >= a.left && r.right <= a.right - 8 };
+    });
+    return { bigFits: range.getBoundingClientRect().right <= hr.right - 16, kpis };
+  });
+  expect(kokpit.bigFits, 'Nakit pozisyonu rakamı panelden taşıyor').toBe(true);
+  for (const k of kokpit.kpis) expect(k.fits, `Gösterge tutarı sıkışık: ${k.text}`).toBe(true);
+
+  await page.goto('/cariler');
+  // Ad metninin kendisi değil, ad için ayrılan ilk ızgara hücresi (simge + ad) ölçülür
+  const nameCell = page.locator('main a[href^="/cariler/"] > div').first();
+  await expect(nameCell).toBeVisible();
+  const cellWidth = (await nameCell.boundingBox())!.width;
+  expect(cellWidth, 'cari adı sütunu çok dar').toBeGreaterThanOrEqual(180);
+
+  await page.goto('/raporlar?rapor=pnl');
+  await page.waitForTimeout(1200);
+  const toplam = await page.evaluate(() => {
+    const box = document.querySelector('.scroll-table')!.getBoundingClientRect();
+    const th = [...document.querySelectorAll('.scroll-table thead th')].at(-1)!.getBoundingClientRect();
+    return { visible: th.left >= box.left - 1 && th.right <= box.right + 1 };
+  });
+  expect(toplam.visible, 'rapor tablosunda "Toplam" sütunu yarım ya da görünmüyor').toBe(true);
+});
+
 test('detay sayfaları: hesap ve cari', async ({ page }, info) => {
   const errors = watchErrors(page);
   await openDemo(page);

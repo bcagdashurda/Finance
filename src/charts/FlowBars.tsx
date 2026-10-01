@@ -49,6 +49,8 @@ function FlowBarsChart({ months, height = 260, delay = 0.2, label }: FlowBarsPro
   }, [months, w, h]);
 
   const bw = x.bandwidth();
+  // Dar ekranda ay adları çakışıyordu ("OcaŞubMar"): adım ~30 px'in altındaysa seyrelt, en son ay hep yazılı
+  const labelEvery = Math.max(1, Math.ceil(30 / Math.max(1, x.step())));
   const zero = y(0);
   const r = Math.min(4, bw / 2);
   const hovered = hover != null ? months[hover] : null;
@@ -104,9 +106,11 @@ function FlowBarsChart({ months, height = 260, delay = 0.2, label }: FlowBarsPro
                     strokeWidth={2}
                     strokeLinecap="round"
                   />
-                  <text x={cx + bw / 2} y={h + 18} textAnchor="middle" className="fill-[var(--ink-faint)] text-[11px] capitalize">
-                    {formatMonthShort(m.key)}
-                  </text>
+                  {(months.length - 1 - i) % labelEvery === 0 && (
+                    <text x={cx + bw / 2} y={h + 18} textAnchor="middle" className="fill-[var(--ink-faint)] text-[11px] capitalize">
+                      {formatMonthShort(m.key)}
+                    </text>
+                  )}
                   <rect
                     x={cx - (x.step() - bw) / 2}
                     y={0}

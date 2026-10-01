@@ -163,3 +163,40 @@ Bulunan ve düzeltilen:
 Doğrulanan (canlı): yedek → Toros Deterjan silindi (8 → 7), Kuzey Mobilya arşivlendi (7 → 6, "Arşivi göster" ile 7) → geri yükleme sonrası 8 cari, arşiv yok, "Son yedek bugün" korunuyor. Koyu temada Kokpit, Nakit akışı, Takvim, Cariler, Raporlar, Çekler okunaklı.
 
 Ekran: `s12-yedek-onay.png`, `s12-cari-sil-onay.png`, `s12-koyu-*.png`, `s12-akis-endusuk-etiket.png`
+
+## S13 · Telefonda kullanım (375 px; masaüstü kaydırma çubuğuyla fiilen 360 px) — 🔧
+
+Oynanan: Kokpit'i okuma, "+" ile tahsilat (Kuzey Mobilya, 12 bin), alttan açılan sayfayı sürükleyerek kapatma, takvim, cari detayı, ekstre aktarma, 14 form ve 25 ekranın taşma taraması.
+
+Bulunan ve düzeltilen:
+- **Bildirim "+" düğmesini örtüyordu (önemli):** Kayıttan sonra çıkan "Geri al" bildirimi alt menünün üstüne oturuyor, birkaç saniye yeni kayıt girilemiyordu. Artık menünün üstünde duruyor; "+" hep tıklanabilir.
+- **Nakit değişimi yanlıştı (hesap hatası):** 30 günden genç işletmede "son 30 günde ₺0 · %0" yazıyordu (açılış günündeki hareketler kıyas noktasına dahil ediliyordu). Artık "açılıştan beri −₺152.950 (−%7,2)"; elle doğrulandı: açılış ₺2.112.100 → bugün ₺1.959.150.
+- **Ekstre aktarma inceleme ekranı telefonda okunmuyordu:** açıklama sütunu ~30 px'e düşüp kelime kelime alt alta yazılıyordu. Telefonda iki satır: [✓ açıklama · tarih · tutar] / [kategori seçimi].
+- **Takvim:** hücrelerde tutar 3 satıra bölünüyordu ("+" / "₺45" / "bin"). Telefonda renk yoğunluğu + nokta; güne dokununca o günün ayrıntısına kayıyor.
+- **Geçmiş güne dokununca sayfa 12 px yana kayıyordu:** uzun işlem açıklaması tek sütunlu ızgarayı genişletiyordu. Kök neden 5 sayfa düzeninde vardı (Takvim, Nakit akışı, Raporlar, Ayarlar, Hesap detayı); hepsi düzeltildi.
+- Kurulumun yalnızca isteğe bağlı adımı kalmışken "Kurulumu tamamlayın" paneli ilk ekranı kaplıyordu (nakit görünmüyordu) → tek satırlık şerit.
+- Kayıt türü seçicisinde masaüstü kaydırma çubuğu vardı; cari sayfasından "Fatura" açılınca seçili tür ekran dışında kalıyordu → çubuk gizli, kenar soluyor, seçili tür ortalanıyor.
+- 360 px'te taşmalar: cari detayı panel başlığı, Ayarlar'daki yapay zekâ anahtar seçimi, senaryo türlerinde "Tekrarlayan".
+
+Doğrulanan: sürükleyerek kapatma (uzun sürükleme kapatır, kısa sürükleme geri yaylanır), 14 formun ve 25 ekranın hiçbirinde taşma yok, kayıt penceresi 89 ms'de açılıyor.
+Açık: Kaydet → pencere kapanması geliştirme sunucusunda 1,9 sn; üretim derlemesinde ölçülecek.
+
+## S14 · Ekran boyutları (375 → 2560) — 🔧 (kullanıcının bildirdiği hata dahil)
+
+**Kullanıcının bildirdiği:** Raporlar'daki 12 aylık tablo 1920×1080'de yarım bitiyordu. Ölçüm: tablo 1216 px, alan 1118 px, "Toplam" sütununun 114 px'inin yalnızca 16 px'i görünüyordu. Kök neden: rapor listesi 260 px'lik yan sütunu kaplıyor (altı boş), tablo dar alana sıkışıyordu.
+- Rapor seçimi üst sekmelere taşındı: **1920 ve 2560'ta tablo kaydırmasız, tamamen sığıyor.**
+- Sığmayan genişliklerde "Kalem" solda, "Toplam" sağda sabit; yalnızca aylar kayıyor, açılışta en güncel aylar görünüyor, kenarda gölge "devamı var" diyor. Tablo her genişlikte "Toplam" ile bitiyor.
+- Bu sırada bulunanlar: sabit "Kalem" sütunu saydamdı (rakamlar altından görünüyordu), "Gelirler/Giderler" başlıkları kaydırınca kayboluyordu, telefonda iki sabit sütun aylara yer bırakmıyordu (telefonda yalnız "Kalem" sabit). Sekmeler 1366'da sığmıyordu → kısa adlar.
+- Aylık grafikte ay adları telefonda çakışıyordu ("OcaŞubMar") → dar ekranda iki ayda bir.
+
+**1024 px (öncelikli aralığın alt ucu) — ciddi sıkışma:** Kokpit'te ana rakam kesikti, "90 günde en düşük" kelime kelime alt alta, Hesaplar'da adlar tek harf; Cariler'de ad sütunu ~10 px'e düşmüş, satırlar üst üste biniyordu.
+- 1024–1279 px'te yan menü (kullanıcı başka seçmediyse) kendiliğinden dar: içeriğe ~170 px.
+- Kokpit rakamı panel genişliğine göre ölçekleniyor (ölçülen oran: rakam ≈ yazı boyu × 4,85); dar panelde göstergeler satır düzeninde.
+- Cariler'de "Risk limiti" sütunu 1280 px ve üstünde (cari detayında her zaman var).
+- 14 günlük şerit 640 px üstünde tek bakışta (768'de yarım bitiyordu); dar sütunda "10 Eki" iki satıra bölünüp su çizgisini kaydırıyordu, üç büyük damla tarih etiketinin üstüne çıkıyordu → düzeltildi (hizasızlık 0 px).
+- Cariler'de "Gecikmiş" tutar yeşildi ("iyi" gibi okunuyordu) → kırmızı.
+
+Taranan: 1024, 1180, 1280, 1366, 1440, 1920, 2560 ve 768 px'te 14 ekran — sayfa taşması, yarım kesik kaydırma bölümü ve kutusundan taşan yazı yok.
+Kalıcı test: "sıkışma yok" (Kokpit rakamları, cari ad sütunu, rapor "Toplam"ı) 7 ekran boyutunda geçiyor. İlk yazdığım sürüm yanlış ölçüyordu (metnin kendi genişliği) ve her yerde kırmızıydı; düzeltildi. Eski Cariler düzeni bilerek geri getirilince test 1024'te kırmızıya düştü (144 < 180 px) — kanıt.
+
+Ekran: `s14-1920-rapor-tablo-once.png` (önce), `s14-rapor-tablo-*.png`, `s14-1024-*.png`, `s14-14gun-*-v2.png`, `s14-rapor-sekme-*.png`

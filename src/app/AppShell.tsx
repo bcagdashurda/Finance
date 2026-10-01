@@ -19,6 +19,7 @@ import { LogoMark, Wordmark } from '@/ui/Logo';
 import { Button, IconButton } from '@/ui/Button';
 import { Kbd, MOD_KEY, Tip } from '@/ui/bits';
 import { Sheet } from '@/ui/Overlay';
+import { useMediaQuery } from '@/ui/useMediaQuery';
 import { formatShort } from '@/domain/money';
 import { useFinance } from './finance';
 import { NAV, SETTINGS_ITEM, type NavItem } from './nav';
@@ -98,7 +99,12 @@ function ThemeButton() {
 }
 
 function Rail() {
-  const { railCollapsed: collapsed, toggleRail, setAssistantOpen } = useUI();
+  const { railPref, setRailCollapsed, setAssistantOpen } = useUI();
+  // 1024–1279 px'te 244 px'lik menü içeriği ~716 px'e sıkıştırıyordu (Kokpit rakamı kesik, cari adları görünmez):
+  // kullanıcı açıkça seçmediyse orada dar menü
+  const wide = useMediaQuery('(min-width: 1280px)');
+  const collapsed = railPref ? railPref === 'collapsed' : !wide;
+  const toggleRail = () => setRailCollapsed(!collapsed);
   const f = useFinance();
   return (
     <aside

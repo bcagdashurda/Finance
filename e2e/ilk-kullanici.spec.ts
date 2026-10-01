@@ -77,7 +77,12 @@ test('ilk kullanıcı: kurulum → hesap → cari → fatura → ekstre', async 
   await expect(page.getByText('Alacak kaydedildi')).toBeVisible();
   // Kokpit alacak toplamı Cariler ile aynı kaynaktan: 120.000 devir + 240.000 fatura
   await expect(page.locator('main')).toContainText('360.000');
-  await expect(page.getByText('Başlangıç · 3/5')).toBeVisible();
+  // Zorunlu üç adım bitti: büyük kurulum paneli yerine tek satır; kalan isteğe bağlı adımlar bağlantı
+  const strip = page.getByRole('region', { name: 'Kurulum' });
+  await expect(strip).toContainText('Temel kurulum tamam');
+  await expect(strip.getByRole('button', { name: 'banka ekstrenizi içe aktarın' })).toBeVisible();
+  await expect(strip.getByRole('button', { name: 'yapay zekâyı açın' })).toBeVisible();
+  await expect(page.getByText('Kurulumu tamamlayın.')).toHaveCount(0);
   await snap(page, info, '03-kokpit-dolu');
 
   // --- 4. Ekstre içe aktarma: kolonlar ve kategoriler otomatik

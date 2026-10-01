@@ -34,8 +34,9 @@ interface UIState {
   closeEntry: () => void;
   assistantOpen: boolean;
   setAssistantOpen: (open: boolean) => void;
-  railCollapsed: boolean;
-  toggleRail: () => void;
+  /** Kullanıcının açık tercihi; null ise ekran genişliğine göre (1280 px altında dar) */
+  railPref: 'collapsed' | 'expanded' | null;
+  setRailCollapsed: (collapsed: boolean) => void;
   theme: ThemePref;
   setTheme: (theme: ThemePref) => void;
   /** Kokpit açılış orkestrasyonu yalnızca oturumda bir kez oynasın */
@@ -73,12 +74,12 @@ export const useUI = create<UIState>((set) => ({
   closeEntry: () => set({ entry: null }),
   assistantOpen: false,
   setAssistantOpen: (assistantOpen) => set({ assistantOpen }),
-  railCollapsed: read('mizan:rail') === 'collapsed',
-  toggleRail: () =>
-    set((s) => {
-      write('mizan:rail', s.railCollapsed ? null : 'collapsed');
-      return { railCollapsed: !s.railCollapsed };
-    }),
+  railPref: (read('mizan:rail') as 'collapsed' | 'expanded' | null) ?? null,
+  setRailCollapsed: (collapsed) => {
+    const railPref = collapsed ? 'collapsed' : 'expanded';
+    write('mizan:rail', railPref);
+    set({ railPref });
+  },
   theme: (read('mizan:theme') as ThemePref | null) ?? 'system',
   setTheme: (theme) => {
     write('mizan:theme', theme === 'system' ? null : theme);

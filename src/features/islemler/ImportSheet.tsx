@@ -369,12 +369,20 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
       <div className="rounded-[16px] border border-line">
         <ul className="scrollbar-thin max-h-[55vh] divide-y divide-line overflow-y-auto">
           {review.map((r) => (
-            <li key={r.row} className={cn('grid grid-cols-[24px_80px_1fr_200px_120px] items-center gap-3 px-3 py-2 text-xs', !r.include && 'opacity-50')}>
+            // Telefonda iki satır: [✓ açıklama tutar] / [kategori seçimi]; geniş ekranda tek satırlık tablo
+            <li
+              key={r.row}
+              className={cn(
+                'grid grid-cols-[24px_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2 px-3 py-2.5 text-xs sm:grid-cols-[24px_80px_minmax(0,1fr)_200px_120px] sm:py-2',
+                !r.include && 'opacity-50',
+              )}
+            >
               <input type="checkbox" checked={r.include} onChange={(e) => update(r.row, { include: e.target.checked })} aria-label="Aktar" className="h-4 w-4 accent-[var(--cobalt)]" />
-              <span className="num text-muted">{formatDateShort(r.date)}</span>
+              <span className="num hidden text-muted sm:block">{formatDateShort(r.date)}</span>
               <div className="min-w-0">
                 <div className="truncate">{r.description}</div>
                 <div className="text-2xs text-muted">
+                  <span className="num sm:hidden">{formatDateShort(r.date)} · </span>
                   {r.duplicate && <span className="text-saffron-text">Mükerrer olabilir · </span>}
                   {r.suggestion.source === 'rule' && 'Öğrenilmiş kural'}
                   {r.suggestion.source === 'contact' && 'Cari adı eşleşti · açık faturalara dağıtılacak'}
@@ -382,31 +390,33 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
                   {r.suggestion.source === 'ai' && <span className="text-cobalt-ink">Yapay zekâ önerisi</span>}
                 </div>
               </div>
-              <Select
-                aria-label="Kategori ya da cari"
-                value={r.contactId ? `c:${r.contactId}` : r.categoryId ? `k:${r.categoryId}` : ''}
-                onChange={(e) => {
-                  const v = e.target.value;
-                  update(r.row, { edited: true, contactId: v.startsWith('c:') ? v.slice(2) : undefined, categoryId: v.startsWith('k:') ? v.slice(2) : undefined });
-                }}
-                className="h-8 text-2xs"
-              >
-                <option value="">Seçin…</option>
-                <optgroup label="Cariler">
-                  {f.contacts.filter((c) => !c.archived).map((c) => (
-                    <option key={c.id} value={`c:${c.id}`}>
-                      {c.name}
-                    </option>
-                  ))}
-                </optgroup>
-                <optgroup label={r.amount > 0 ? 'Gelir kategorileri' : 'Gider kategorileri'}>
-                  {f.categories.filter((c) => c.kind === (r.amount > 0 ? 'income' : 'expense')).map((c) => (
-                    <option key={c.id} value={`k:${c.id}`}>
-                      {c.name}
-                    </option>
-                  ))}
-                </optgroup>
-              </Select>
+              <div className="order-last col-span-2 col-start-2 min-w-0 sm:order-none sm:col-span-1 sm:col-start-auto">
+                <Select
+                  aria-label="Kategori ya da cari"
+                  value={r.contactId ? `c:${r.contactId}` : r.categoryId ? `k:${r.categoryId}` : ''}
+                  onChange={(e) => {
+                    const v = e.target.value;
+                    update(r.row, { edited: true, contactId: v.startsWith('c:') ? v.slice(2) : undefined, categoryId: v.startsWith('k:') ? v.slice(2) : undefined });
+                  }}
+                  className="h-9 text-xs sm:h-8 sm:text-2xs"
+                >
+                  <option value="">Seçin…</option>
+                  <optgroup label="Cariler">
+                    {f.contacts.filter((c) => !c.archived).map((c) => (
+                      <option key={c.id} value={`c:${c.id}`}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                  <optgroup label={r.amount > 0 ? 'Gelir kategorileri' : 'Gider kategorileri'}>
+                    {f.categories.filter((c) => c.kind === (r.amount > 0 ? 'income' : 'expense')).map((c) => (
+                      <option key={c.id} value={`k:${c.id}`}>
+                        {c.name}
+                      </option>
+                    ))}
+                  </optgroup>
+                </Select>
+              </div>
               <Money value={r.amount} tone="auto" sign="always" className="text-right font-semibold" />
             </li>
           ))}

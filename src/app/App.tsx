@@ -6,6 +6,7 @@ import { router } from './router';
 import { Splash } from './Splash';
 import { Welcome } from '@/features/karsilama/Welcome';
 import { LockGate } from './lock';
+import { useMediaQuery } from '@/ui/useMediaQuery';
 
 function Root() {
   const status = useLoadStatus();
@@ -18,14 +19,19 @@ function Root() {
   );
 }
 
+/** lg altında alt gezinme çubuğu (64 px + güvenli alan) var: bildirimler onun üstünde dursun, "+" düğmesini örtmesin. */
+const ABOVE_NAV = 'calc(76px + env(safe-area-inset-bottom))';
+
 export function App() {
+  const desktop = useMediaQuery('(min-width: 1024px)');
   return (
     <FinanceProvider>
       <Tooltip.Provider delayDuration={250}>
         <Root />
         <Toaster
           position="bottom-right"
-          offset={20}
+          offset={desktop ? 20 : { bottom: ABOVE_NAV, right: 16, left: 16 }}
+          mobileOffset={{ bottom: ABOVE_NAV, right: 12, left: 12 }}
           gap={10}
           toastOptions={{
             style: {

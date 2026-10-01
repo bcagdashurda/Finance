@@ -31,6 +31,17 @@ export default function TakvimPage() {
   const openEntry = useUI((s) => s.openEntry);
   const [month, setMonth] = useState(monthKey(f.today));
   const [selected, setSelected] = useState<ISODate>(f.today);
+  /** Gün paneli takvimin altındaysa (xl altı) seçilen günün ayrıntısına kaydır */
+  const pick = (d: ISODate) => {
+    setSelected(d);
+    if (!window.matchMedia('(min-width: 1280px)').matches) {
+      // scrollIntoView yatayda da kaydırabiliyor; yalnızca dikey konum
+      requestAnimationFrame(() => {
+        const el = document.getElementById('gun-ayrinti');
+        if (el) window.scrollTo({ top: el.getBoundingClientRect().top + window.scrollY - 80, behavior: 'smooth' });
+      });
+    }
+  };
   const [ruleSheet, setRuleSheet] = useState<{ open: boolean; rule: RecurringRule | null }>({ open: false, rule: null });
   const [stamp, setStamp] = useState<{ label: string; tone: 'in' | 'out' } | null>(null);
 
@@ -175,7 +186,8 @@ export default function TakvimPage() {
         </Panel>
       )}
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_380px]">
+      {/* minmax(0,1fr): uzun bir işlem açıklaması sütunu genişletip sayfayı yana taşırmasın */}
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_380px]">
         <Panel reveal={1}>
           <div className="mb-4 flex items-center justify-between">
             <h2 className="display text-2xl font-semibold capitalize">{formatMonthYear(month)}</h2>
@@ -217,9 +229,11 @@ export default function TakvimPage() {
                   <button
                     key={d}
                     type="button"
-                    onClick={() => setSelected(d)}
+                    onClick={() => pick(d)}
+                    aria-label={net ? `${formatDayMonthLong(d)}, net ${net > 0 ? 'giriş' : 'çıkış'} ${formatShort(Math.abs(net))}` : formatDayMonthLong(d)}
                     className={cn(
-                      'relative flex min-h-[92px] flex-col rounded-[14px] border p-2 text-left transition-[border-color,transform] hover:-translate-y-px',
+                      // Telefonda hücre ~40 px: tutar yerine renk yoğunluğu + nokta; ayrıntı alttaki gün panelinde
+                      'relative flex min-h-[54px] flex-col rounded-[10px] border p-1.5 text-left transition-[border-color,transform] hover:-translate-y-px sm:min-h-[92px] sm:rounded-[14px] sm:p-2',
                       selected === d ? 'border-cobalt shadow-[0_0_0_2px_var(--cobalt)]' : 'border-line',
                       !inMonth && 'opacity-40',
                       d < f.today && 'opacity-70',
@@ -238,7 +252,7 @@ export default function TakvimPage() {
                       </span>
                       {isHoliday(d) && <Tip content="Resmî tatil"><span className="h-1.5 w-1.5 rounded-full bg-saffron" /></Tip>}
                     </div>
-                    <div className="mt-1 space-y-0.5">
+                    <div className="mt-1 hidden space-y-0.5 sm:block">
                       {items.slice(0, 2).map((it) => (
                         <div key={it.key} className={cn('truncate text-[10px] leading-tight', it.direction === 'in' ? 'text-inflow-text' : 'text-outflow-text')}>
                           {contactName(it.contactId)?.split(' ')[0] ?? it.label.split(' ')[0]} {formatShort(it.expectedAmount).replace('₺', '')}
@@ -247,10 +261,13 @@ export default function TakvimPage() {
                       {items.length > 2 && <div className="text-[10px] text-muted">+{items.length - 2} kalem</div>}
                     </div>
                     {net !== 0 && (
-                      <div className={cn('num mt-auto text-right text-[10.5px] font-semibold', net > 0 ? 'text-inflow-text' : 'text-outflow-text')}>
-                        {net > 0 ? '+' : ''}
-                        {formatShort(net)}
-                      </div>
+                      <>
+                        <div aria-hidden className={cn('num mt-auto hidden text-right text-[10.5px] font-semibold sm:block', net > 0 ? 'text-inflow-text' : 'text-outflow-text')}>
+                          {net > 0 ? '+' : ''}
+                          {formatShort(net)}
+                        </div>
+                        <span aria-hidden className={cn('mx-auto mt-auto h-1.5 w-1.5 rounded-full sm:hidden', net > 0 ? 'bg-inflow' : 'bg-outflow')} />
+                      </>
                     )}
                   </button>
                 );
@@ -268,7 +285,7 @@ export default function TakvimPage() {
           </div>
         </Panel>
 
-        <Panel reveal={2} className="relative">
+        <Panel reveal={2} className="relative scroll-mt-20" id="gun-ayrinti">
           <PanelHeader title={formatDayMonthLong(selected)} description={`${formatWeekday(selected)}${selected === f.today ? ' · bugün' : ''}`} />
           {selected >= f.today ? (
             <ul className="space-y-2">

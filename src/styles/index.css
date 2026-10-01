@@ -310,6 +310,38 @@
     scrollbar-color: var(--line-strong) transparent;
   }
 
+  /* Yana kayan seçenek şeridi: çubuk gizli, taşan kenar solarak "devamı var" der */
+  .scroll-chips {
+    scrollbar-width: none;
+    overscroll-behavior-x: contain;
+  }
+  .scroll-chips::-webkit-scrollbar {
+    display: none;
+  }
+  .scroll-chips[data-more-end] {
+    mask-image: linear-gradient(to right, #000 calc(100% - 40px), transparent);
+  }
+  .scroll-chips[data-more-start] {
+    mask-image: linear-gradient(to right, transparent, #000 40px);
+  }
+  .scroll-chips[data-more-start][data-more-end] {
+    mask-image: linear-gradient(to right, transparent, #000 40px, #000 calc(100% - 40px), transparent);
+  }
+
+  /* Yana kayan tablo: sabit ilk/son sütun, altında içerik kaldığında gölgeyle ayrılır */
+  .scroll-table[data-more-start] .stick-l {
+    box-shadow:
+      inset -1px 0 0 var(--line),
+      12px 0 14px -12px rgb(15 26 61 / 0.28);
+  }
+  @media (min-width: 40rem) {
+    .scroll-table[data-more-end] .stick-r {
+      box-shadow:
+        inset 1px 0 0 var(--line),
+        -12px 0 14px -12px rgb(15 26 61 / 0.28);
+    }
+  }
+
   .sr-only {
     position: absolute;
     width: 1px;
@@ -474,6 +506,15 @@
   }
   tr {
     break-inside: avoid;
+  }
+  /* Ekrandaki sabit (yapışkan) sütunlar ve kısaltılmış etiketler kâğıtta gerekmez */
+  .stick-l,
+  .stick-r {
+    position: static !important;
+  }
+  td .truncate {
+    max-width: none !important;
+    white-space: normal !important;
   }
   h1,
   h2,

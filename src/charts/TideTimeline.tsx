@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'motion/react';
 import type { ForecastItem } from '@/domain/forecast';
 import { addDays, dayOfWeek, isBusinessDay, type ISODate } from '@/domain/dates';
@@ -6,6 +6,7 @@ import { formatShort, formatMoney } from '@/domain/money';
 import { cn } from '@/ui/cn';
 import { formatDayMonth, formatWeekdayShort } from '@/ui/format';
 import { ChartEmpty } from './ChartEmpty';
+import { useScrollEdges } from '@/ui/ScrollChips';
 
 interface TideTimelineProps {
   items: ForecastItem[];
@@ -22,6 +23,7 @@ interface TideTimelineProps {
  */
 export function TideTimeline({ items, today, days = 14, contactName, onSelect, delay = 0.4 }: TideTimelineProps) {
   const [hover, setHover] = useState<string | null>(null);
+  const scroller = useRef<HTMLDivElement>(null);
   const dates = useMemo(() => Array.from({ length: days }, (_, i) => addDays(today, i)), [today, days]);
   const byDay = useMemo(() => {
     const map = new Map<ISODate, { ins: ForecastItem[]; outs: ForecastItem[] }>();
@@ -42,6 +44,7 @@ export function TideTimeline({ items, today, days = 14, contactName, onSelect, d
   const max = Math.max(1, ...inRange.map((i) => i.expectedAmount));
   const size = (amount: number) => 10 + Math.sqrt(amount / max) * 62;
   const hovered = items.find((i) => i.key === hover);
+  useScrollEdges(scroller, [inRange.length > 0]);
 
   if (!inRange.length) {
     return (
@@ -55,24 +58,31 @@ export function TideTimeline({ items, today, days = 14, contactName, onSelect, d
 
   return (
     <div className="relative">
-      <div className="scrollbar-thin -mx-2 overflow-x-auto px-2 pb-2">
-        <div className="grid min-w-[760px] gap-1.5" style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}>
+      {/* 640 px üstünde 14 gün tek bakışta (768'de yarım kesik bitiyordu); telefonda kayar, kenar solar */}
+      <div ref={scroller} className="scroll-chips -mx-2 overflow-x-auto px-2 pb-2">
+        <div className="grid min-w-[700px] gap-1.5 sm:min-w-[600px]" style={{ gridTemplateColumns: `repeat(${days}, minmax(0, 1fr))` }}>
           {dates.map((d, di) => {
             const slot = byDay.get(d)!;
             const weekend = !isBusinessDay(d);
             const isToday = d === today;
             const inTotal = slot.ins.reduce((s, i) => s + i.expectedAmount, 0);
             const outTotal = slot.outs.reduce((s, i) => s + i.expectedAmount, 0);
+            const inFit = fitFactor(slot.ins.slice(0, 3).map((i) => size(i.expectedAmount)));
+            const outFit = fitFactor(slot.outs.slice(0, 3).map((i) => size(i.expectedAmount)));
+            // Ay adı yalnızca ilk günde ve ay başında: dar sütunda "10 Eki" iki satıra bölünüp su çizgisini kaydırıyordu
+            const showMonth = di === 0 || d.endsWith('-01');
             return (
               <div key={d} className={cn('flex flex-col rounded-[14px] px-1 py-1.5', weekend && 'bg-sunken/60', isToday && 'bg-cobalt-soft/60')}>
-                <div className="mb-1 text-center">
+                <div className="mb-1 whitespace-nowrap text-center">
                   <div className={cn('text-2xs', isToday ? 'font-semibold text-cobalt-ink' : 'text-faint')}>{isToday ? 'Bugün' : formatWeekdayShort(d)}</div>
-                  <div className={cn('num text-xs', dayOfWeek(d) === 1 ? 'text-ink' : 'text-muted')}>{formatDayMonth(d)}</div>
+                  <div className={cn('num text-xs', dayOfWeek(d) === 1 ? 'text-ink' : 'text-muted')} title={formatDayMonth(d)}>
+                    {showMonth ? formatDayMonth(d) : Number(d.slice(8))}
+                  </div>
                 </div>
-                {/* Girişler — yukarı doğru büyür */}
+                {/* Girişler — yukarı doğru büyür; üç damla alana sığmazsa orantılı küçülür (tarihin üstüne taşıyordu) */}
                 <div className="flex h-[132px] flex-col-reverse items-center gap-1">
                   {slot.ins.slice(0, 3).map((it, k) => (
-                    <Drop key={it.key} item={it} height={size(it.expectedAmount)} dir="in" delay={delay + di * 0.035 + k * 0.05} active={hover === it.key} onHover={setHover} onSelect={onSelect} />
+                    <Drop key={it.key} item={it} height={size(it.expectedAmount) * inFit} dir="in" delay={delay + di * 0.035 + k * 0.05} active={hover === it.key} onHover={setHover} onSelect={onSelect} />
                   ))}
                   {slot.ins.length > 3 && <span className="text-[10px] text-muted">+{slot.ins.length - 3}</span>}
                 </div>
@@ -84,13 +94,13 @@ export function TideTimeline({ items, today, days = 14, contactName, onSelect, d
                 </div>
                 <div className="flex h-[132px] flex-col items-center gap-1">
                   {slot.outs.slice(0, 3).map((it, k) => (
-                    <Drop key={it.key} item={it} height={size(it.expectedAmount)} dir="out" delay={delay + 0.15 + di * 0.035 + k * 0.05} active={hover === it.key} onHover={setHover} onSelect={onSelect} />
+                    <Drop key={it.key} item={it} height={size(it.expectedAmount) * outFit} dir="out" delay={delay + 0.15 + di * 0.035 + k * 0.05} active={hover === it.key} onHover={setHover} onSelect={onSelect} />
                   ))}
                   {slot.outs.length > 3 && <span className="text-[10px] text-muted">+{slot.outs.length - 3}</span>}
                 </div>
                 <div className="mt-1 space-y-0.5 text-center">
-                  {inTotal > 0 && <div className="num text-[10px] text-inflow-text">+{formatShort(inTotal)}</div>}
-                  {outTotal > 0 && <div className="num text-[10px] text-outflow-text">−{formatShort(outTotal)}</div>}
+                  {inTotal > 0 && <ShortAmount sign="+" value={inTotal} className="text-inflow-text" />}
+                  {outTotal > 0 && <ShortAmount sign="−" value={outTotal} className="text-outflow-text" />}
                 </div>
               </div>
             );
@@ -135,6 +145,28 @@ function sourceLabel(i: ForecastItem): string {
   if (i.source === 'vat') return 'Vergi tahmini';
   if (i.source === 'planned') return 'Planlı işlem';
   return 'Senaryo';
+}
+
+/** Damlalar (aralarında 4 px) 132 px'lik alana sığmıyorsa hepsini aynı oranda küçültür */
+function fitFactor(heights: number[], room = 130): number {
+  const total = heights.reduce((s, h) => s + h, 0) + Math.max(0, heights.length - 1) * 4;
+  return total > room ? room / total : 1;
+}
+
+/** "+₺813,4 bin": işaret ve rakam ayrılmaz, birim gerekirse alt satıra iner */
+function ShortAmount({ sign, value, className }: { sign: string; value: number; className: string }) {
+  const text = formatShort(value);
+  const cut = text.lastIndexOf(' ');
+  const [num, unit] = cut > 0 ? [text.slice(0, cut), text.slice(cut + 1)] : [text, ''];
+  return (
+    <div className={cn('num text-[10px] leading-tight', className)}>
+      <span className="whitespace-nowrap">
+        {sign}
+        {num}
+      </span>
+      {unit && ` ${unit}`}
+    </div>
+  );
 }
 
 function Drop({

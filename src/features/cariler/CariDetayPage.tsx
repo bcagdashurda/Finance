@@ -256,7 +256,7 @@ export default function CariDetayPage() {
           title={tab === 'statement' ? 'Hesap ekstresi' : tab === 'open' ? 'Açık belgeler' : 'Ödeme geçmişi'}
           description={tab === 'statement' ? 'Borç: carinin borcunu artırır · Alacak: azaltır' : tab === 'open' ? `${openDocs.length} belge` : 'Kapanan faturaların vadeye göre gecikmesi'}
           actions={
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {tab === 'statement' && (
                 <Button size="sm" variant="ghost" icon={<DownloadSimple size={14} />} onClick={exportStatement}>
                   Excel

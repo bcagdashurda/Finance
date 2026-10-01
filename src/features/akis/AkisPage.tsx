@@ -181,7 +181,7 @@ export default function AkisPage() {
         )}
       </AnimatePresence>
 
-      <div className="grid gap-5 xl:grid-cols-[1fr_360px]">
+      <div className="grid grid-cols-1 gap-5 xl:grid-cols-[minmax(0,1fr)_360px]">
         <Panel reveal={0}>
           <PanelHeader
             title="Projeksiyon"

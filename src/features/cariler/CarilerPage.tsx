@@ -128,10 +128,11 @@ export default function CarilerPage() {
           />
         </div>
 
-        <div className="hidden grid-cols-[1fr_140px_170px_150px_150px] gap-4 border-b border-line px-6 py-2.5 text-2xs font-medium text-muted lg:grid">
+        {/* 1024–1279: risk limiti sütunu yok (cari detayında var); 5 sütun cari adını ~10 px'e sıkıştırıyordu */}
+        <div className="hidden gap-4 border-b border-line px-6 py-2.5 text-2xs font-medium text-muted lg:grid lg:grid-cols-[minmax(200px,1fr)_140px_150px_150px] xl:grid-cols-[minmax(220px,1fr)_140px_170px_150px_150px]">
           <span>Cari</span>
           <span>Ödeme alışkanlığı</span>
-          <span>Risk limiti</span>
+          <span className="hidden xl:block">Risk limiti</span>
           <span className="text-right">Gecikmiş</span>
           <span className="text-right">Bakiye</span>
         </div>
@@ -143,7 +144,10 @@ export default function CarilerPage() {
                 <Link
                   to={`/cariler/${c.id}`}
                   viewTransition
-                  className={cn('grid grid-cols-[1fr_auto] items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:px-6 lg:grid-cols-[1fr_140px_170px_150px_150px]', c.archived && 'opacity-60')}
+                  className={cn(
+                    'grid grid-cols-[minmax(0,1fr)_auto] items-center gap-4 px-4 py-3.5 transition-colors hover:bg-surface-2 sm:px-6 lg:grid-cols-[minmax(200px,1fr)_140px_150px_150px] xl:grid-cols-[minmax(220px,1fr)_140px_170px_150px_150px]',
+                    c.archived && 'opacity-60',
+                  )}
                 >
                   <div className="flex min-w-0 items-center gap-3">
                     <span style={{ viewTransitionName: `contact-${c.id}` }}>
@@ -162,7 +166,7 @@ export default function CarilerPage() {
                   <div className="hidden lg:block">
                     {behavior ? <DelayMeter delay={behavior.avgDelay} onTime={behavior.onTimeRate} /> : <span className="text-2xs text-faint">Veri yok</span>}
                   </div>
-                  <div className="hidden lg:block">
+                  <div className="hidden xl:block">
                     {usage != null ? (
                       <Tip content={`Limitin ${percent(usage)} kadarı kullanılıyor`}>
                         <div>
@@ -181,7 +185,10 @@ export default function CarilerPage() {
                       <span className="text-2xs text-faint">Limit yok</span>
                     )}
                   </div>
-                  <div className="hidden text-right lg:block">{overdue ? <Money value={overdue} tone="auto" decimals={0} className="text-sm font-medium" /> : <span className="text-2xs text-faint">—</span>}</div>
+                  {/* Gecikme her yönde risktir: yeşil ("iyi") görünmesin */}
+                  <div className="hidden text-right lg:block">
+                    {overdue ? <Money value={Math.abs(overdue)} decimals={0} className="text-sm font-medium text-outflow-text" /> : <span className="text-2xs text-faint">—</span>}
+                  </div>
                   <div className="text-right">
                     <Money value={bal} currency={c.currency} tone="auto" decimals={0} className="text-sm font-semibold" />
                     <div className="text-2xs text-muted">{bal > 0 ? 'bize borçlu' : bal < 0 ? 'borçluyuz' : 'kapalı'}</div>

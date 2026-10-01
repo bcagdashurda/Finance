@@ -33,10 +33,10 @@ import { TideTimeline } from '@/charts/TideTimeline';
 import { Sparkline } from '@/charts/Sparkline';
 import { monthlyFlows } from '@/domain/aggregate';
 import { addDays, addMonths, diffDays, startOfMonth } from '@/domain/dates';
-import { balanceSeries, amountInBase } from '@/domain/balances';
+import { balanceSeries, balancesByAccount, totalInBase, amountInBase } from '@/domain/balances';
 import { formatShort, CURRENCY_META } from '@/domain/money';
 import { buildInsights, type Insight } from './insights';
-import { GettingStarted, useGettingStarted } from './GettingStarted';
+import { GettingStarted, GettingStartedStrip, useGettingStarted } from './GettingStarted';
 
 export default function KokpitPage() {
   const f = useFinance();
@@ -52,13 +52,17 @@ export default function KokpitPage() {
 
   const activeAccounts = useMemo(() => f.accounts.filter((a) => !a.archived), [f.accounts]);
 
-  const history = useMemo(() => {
+  const { history, monthAgo, young } = useMemo(() => {
     // Geçmiş çizgi en erken hesap açılışından önceye uzanmasın (yeni kullanıcıda uydurma düz çizgi olmasın)
     const earliest = activeAccounts.reduce<string>((m, a) => (a.openingDate < m ? a.openingDate : m), f.today);
-    const from = earliest > addDays(f.today, -30) ? earliest : addDays(f.today, -30);
-    return balanceSeries(activeAccounts, f.transactions, from, f.today, f.rates);
-  }, [activeAccounts, f.transactions, f.today, f.rates]);
-  const monthAgo = history[0]?.value ?? f.totalBase;
+    const young = earliest > addDays(f.today, -30);
+    const from = young ? earliest : addDays(f.today, -30);
+    const history = balanceSeries(activeAccounts, f.transactions, from, f.today, f.rates);
+    // 30 günden genç işletmede kıyas noktası açılış bakiyeleri (açılış günü hareketlerinden önce);
+    // yoksa açılış günü girilen tahsilatlar "değişim"den düşüyor ve hep ₺0 görünüyordu.
+    const monthAgo = young ? totalInBase(activeAccounts, balancesByAccount(activeAccounts, f.transactions, addDays(earliest, -1)), f.rates) : (history[0]?.value ?? f.totalBase);
+    return { history, monthAgo, young };
+  }, [activeAccounts, f.transactions, f.today, f.rates, f.totalBase]);
   const delta = f.totalBase - monthAgo;
 
   const months = useMemo(
@@ -169,11 +173,11 @@ export default function KokpitPage() {
         }
       />
 
-      {guide.visible && <GettingStarted state={guide} className="mb-5" />}
+      {guide.visible && (guide.requiredDone ? <GettingStartedStrip state={guide} className="mb-5" /> : <GettingStarted state={guide} className="mb-5" />)}
 
       <div className="grid grid-cols-1 gap-5 lg:grid-cols-12">
         {/* HERO — Nakit pozisyonu */}
-        <Panel reveal={reveal(0)} className="relative overflow-hidden lg:col-span-7" padded={false}>
+        <Panel reveal={reveal(0)} className="@container relative overflow-hidden lg:col-span-7" padded={false}>
           <div className="p-6 sm:p-8">
             <div className="flex items-center gap-2 text-sm text-muted">
               Nakit pozisyonu
@@ -181,7 +185,8 @@ export default function KokpitPage() {
                 <Info size={14} className="cursor-help" />
               </Tip>
             </div>
-            <div className="display mt-3 text-[3.4rem] font-medium leading-none tracking-[-0.035em] text-ink sm:text-[5.2rem] xl:text-[6rem]">
+            {/* Boyut panel genişliğinden: rakam ≈ 4,85 em (8 hane için 5,5 em payı); 1024 px'te kesiliyordu */}
+            <div className="display mt-3 text-[length:clamp(2.4rem,calc(18cqw_-_12px),6rem)] font-medium leading-none tracking-[-0.035em] text-ink">
               <Odometer
                 value={f.totalBase}
                 animateOnMount={!introPlayed}
@@ -197,7 +202,7 @@ export default function KokpitPage() {
               >
                 {formatShort(delta)} · {percent(monthAgo ? delta / Math.abs(monthAgo) : 0, 1)}
               </Badge>
-              <span className="text-xs text-muted">son 30 günde</span>
+              <span className="text-xs text-muted">{young ? 'açılıştan beri' : 'son 30 günde'}</span>
               <span className="mx-1 h-3 w-px bg-line-strong" />
               {[...f.byCurrency.entries()].map(([cur, v]) => (
                 <span key={cur} className="num text-xs text-ink-2">
@@ -206,7 +211,8 @@ export default function KokpitPage() {
               ))}
             </div>
           </div>
-          <div className="grid grid-cols-1 border-t border-line sm:grid-cols-3">
+          {/* Panel 36rem'den darsa (1024 px, telefon) göstergeler alt alta: üç sütunda tutarlar kesiliyordu */}
+          <div className="grid grid-cols-1 border-t border-line @xl:grid-cols-3">
             <Kpi
               to="/akis"
               label="90 günde en düşük"
@@ -229,7 +235,7 @@ export default function KokpitPage() {
               value={openTotals.recv}
               sub={openTotals.recvOverdue > 0 ? <span className="text-outflow-text">{formatShort(openTotals.recvOverdue)} gecikmede</span> : 'Gecikme yok'}
               delay={0.7}
-              className="sm:border-l"
+              className="border-t @xl:border-t-0 @xl:border-l"
             />
             <Kpi
               to="/takvim"
@@ -237,7 +243,7 @@ export default function KokpitPage() {
               value={openTotals.pay}
               sub={<span>{formatShort(openTotals.payDue30)} önümüzdeki 30 gün</span>}
               delay={0.8}
-              className="sm:border-l"
+              className="border-t @xl:border-t-0 @xl:border-l"
             />
           </div>
         </Panel>
@@ -584,13 +590,21 @@ function Kpi({
       animate={{ opacity: 1, y: 0 }}
       transition={{ delay, duration: 0.6, ease: [0.25, 1, 0.5, 1] }}
     >
-      <Link to={to} viewTransition className="group block h-full px-6 py-5 transition-colors hover:bg-surface-2 sm:px-8">
-        <div className="flex items-center justify-between gap-2 text-xs text-muted">
-          {label}
-          <ArrowRight size={12} className="opacity-0 transition-[opacity,transform] group-hover:translate-x-0.5 group-hover:opacity-100 group-focus-visible:opacity-100" />
+      {/* Dar panelde (alt alta) satır düzeni: etiket + açıklama solda, tutar sağda */}
+      <Link
+        to={to}
+        viewTransition
+        className="group flex h-full items-center justify-between gap-4 px-6 py-4 transition-colors hover:bg-surface-2 sm:px-8 @xl:block @xl:py-5"
+      >
+        <div className="min-w-0">
+          <div className="flex items-center justify-between gap-2 text-xs text-muted">
+            {label}
+            <ArrowRight size={12} className="opacity-0 transition-[opacity,transform] group-hover:translate-x-0.5 group-hover:opacity-100 group-focus-visible:opacity-100" />
+          </div>
+          <div className="mt-0.5 text-2xs text-muted @xl:hidden">{sub}</div>
         </div>
-        <Money value={value} decimals={0} className={cn('display mt-1 block text-[1.7rem] leading-tight text-ink', valueClassName)} />
-        <div className="mt-0.5 text-2xs text-muted">{sub}</div>
+        <Money value={value} decimals={0} className={cn('display block shrink-0 text-[1.45rem] leading-tight text-ink @xl:mt-1 @xl:text-[1.7rem]', valueClassName)} />
+        <div className="mt-0.5 hidden text-2xs text-muted @xl:block">{sub}</div>
       </Link>
     </motion.div>
   );

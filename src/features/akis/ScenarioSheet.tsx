@@ -143,14 +143,16 @@ function ScenarioEditor({ scenario, draft, horizon, onDone }: { scenario: Scenar
       </div>
 
       <div className="rounded-[18px] border border-line p-4">
-        <div className="mb-3 grid grid-cols-5 gap-1.5">
+        {/* Telefonda 5 sütun "Tekrarlayan"ı kutusundan taşırıyordu: dar ekranda 3 + 2 */}
+        <div className="mb-3 grid grid-cols-3 gap-1.5 min-[440px]:grid-cols-5">
           {TYPES.map((t) => (
             <button
               key={t.type}
               type="button"
+              aria-pressed={adding === t.type}
               onClick={() => setAdding(t.type)}
               className={cn(
-                'flex flex-col items-center gap-1 rounded-[12px] border px-2 py-2.5 text-2xs transition-colors',
+                'flex flex-col items-center gap-1 rounded-[12px] border px-2 py-2.5 text-center text-2xs leading-tight transition-colors',
                 adding === t.type ? 'border-cobalt bg-cobalt-soft text-cobalt-ink' : 'border-line text-muted hover:text-ink',
               )}
             >
