@@ -51,12 +51,15 @@ export async function snap(page: Page, info: TestInfo, name: string) {
   await info.attach(name, { body, contentType: 'image/png' });
 }
 
-/** Demo işletmeyi yükleyip Kokpit'e iner. */
+/**
+ * Demo işletmeyi yükleyip Kokpit'e iner. Uzun bekleme yalnızca Playwright'ın Windows WebKit derlemesi için:
+ * orada IndexedDB satır başına ~15 ms yazıyor (ham IndexedDB ile ölçüldü; Chrome'da tüm demo ~0,3 sn).
+ */
 export async function openDemo(page: Page) {
   await stubNetwork(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Demo işletmeyle keşfet' }).click();
-  await expect(page.getByRole('heading', { name: 'Kokpit', level: 1 })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Kokpit', level: 1 })).toBeVisible({ timeout: 45_000 });
 }
 
 export const isMobile = (info: TestInfo) => (info.project.use.viewport?.width ?? 1280) < 640;

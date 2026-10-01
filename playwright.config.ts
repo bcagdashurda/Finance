@@ -43,6 +43,10 @@ export default defineConfig({
     viewport('laptop-1440', 1440, 900),
     viewport('fhd-1920', 1920, 1080),
     viewport('qhd-2560', 2560, 1440),
+    // Chrome dışı motorlar: iPhone'da tüm tarayıcılar WebKit (Safari) kullanır; Firefox masaüstünde
+    // Windows WebKit'te IndexedDB yazımı çok yavaş (satır başına ~15 ms): demo yüklemesi ~15 sn sürer
+    { name: 'safari-iphone', use: { ...devices['iPhone 13'] }, timeout: 150_000 },
+    { name: 'firefox-1366', use: { ...devices['Desktop Firefox'], viewport: { width: 1366, height: 768 } } },
   ],
   webServer: {
     command: `npm run build && npx vite preview --port ${PORT} --strictPort`,

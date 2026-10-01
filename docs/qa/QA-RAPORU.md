@@ -265,3 +265,28 @@ Ekran: `ai-fayda-1366.png`, `ai-kullanim-1366.png`, `ai-rehber-groq-*.png`, `ai-
 Geliştirme sunucusunda ölçülen "Kaydet → pencere kapanması 1,9 sn" ayrıştırıldı: kayıt 40 ms; kalanı kapanış animasyonu ve tahsilat/ödemelerdeki "TAHSİL EDİLDİ" mührü için **bilerek konmuş 1,1 sn bekleme**. Arka arkaya kayıt giren için uzun → 0,8 sn'ye indirildi (mühür animasyonu 0,7 sn), azaltılmış hareket tercihinde beklenmez.
 İkon paketi 351 KB (sıkıştırılmış 78 KB): ağaç sallama çalışıyor (kullanılan 129 ikon = paketteki 129); boyut her ikonun 6 ağırlık çizimini taşımasından. Bir kez indirilip uzun süre önbellekte kaldığı için bırakıldı.
 Not: ölçümler hızlı bir bilgisayarda; orta seviye bir telefonda birkaç kat uzun sürebilir (gerçek cihazda ölçülmedi).
+
+## Yayın öncesi ek doğrulamalar (anahtar/SQL gerektirmeyen) — 🔧
+
+**Safari (iPhone) ve Firefox:** test aracına WebKit ve Firefox eklendi; her test artık 9 tarayıcı/ekran bileşiminde koşuyor.
+- Firefox: tüm testler ilk denemede geçti.
+- Safari: ilk koşuda 17 test "demo hiç açılmıyor" diye düştü. Kök neden ölçülerek bulundu: Playwright'ın Windows WebKit derlemesinde IndexedDB satır başına ~15 ms yazıyor (Dexie'siz ham IndexedDB ile de aynı: 50 satır 0,8 sn, 200 satır 3 sn); 823 işlemlik demo ~12 sn sürüyor, beklemeler 8–10 sn'ydi. Veri doğru yazılıyor, uygulama mantığı çalışıyor; yeterli süre verilince Safari'de tüm testler geçti (ekranlar, yerleşim, kilit, kayıt, ayarlar). İki test aracı sınırlaması düzeltildi (telefon WebKit'inde fare tekerleği yok).
+- Açık risk: gerçek iPhone'da toplu yazma (demo, ekstre aktarma, yedek geri yükleme) hızı ancak gerçek cihazda ölçülebilir; tek tek girilen kayıtlar etkilenmez.
+
+**İnternetsiz çalışma (PWA):** ikinci ziyaretten itibaren bağlantı kesikken uygulama 169 ms'de açıldı; doğrudan rapor adresi, sayfa geçişleri ve yeni kayıt çalıştı; hata yok.
+
+**Ağır veri:** demo 5 yıla ve 3 kat yoğunluğa çoğaltıldı (12.405 işlem): Kokpit 341 ms, kaydetme 55 ms (sonrasında tek 51 ms'lik hesaplama, takılma yok), sayfa geçişleri 36–128 ms, İşlemler listesi 120 satır gösterip gerisini sayfalıyor.
+
+**Yavaş telefon (işlemci yavaşlatma + 4G):**
+
+| | Orta seviye (4×) | Ucuz (6×) |
+|---|---|---|
+| İlk açılış | 1,2 sn | 1,6 sn |
+| Demo → Kokpit | 1,3 sn | 2,5 sn |
+| Kayıt penceresi | 0,36 sn | 0,66 sn |
+| Kaydetme | 0,25 sn | 0,41 sn |
+| Sayfa geçişi | 0,5–0,6 sn | ~1,1 sn |
+
+CPU profili: sürenin çoğu JavaScript değil (uygulama + React ~100–200 ms), tarayıcının çizimi (görsel efektler). Ucuz telefonda efektleri sadeleştirme kararı gerçek cihaz görüldükten sonra verilecek. Boşta sayfa kodlarının arka planda indirilmesi eklendi (ilk ziyarette ağ beklenmez, çevrimdışında hepsi hazır); ölçülen hız kazancı ihmal edilebilir düzeyde — dürüst not.
+
+**Gerçek Excel (.xlsx) ekstresi:** üstte rapor başlıkları, tarihler Excel tarih sayısı (bazılarında 14:35 ve 23:50 saati), tutarlar sayı. Chrome, telefon ve Firefox'ta 13 satır doğru okundu, gece 23:50'deki işlem ertesi güne kaymadı, tutar ve yönler doğru. Kodda saat dilimi hatası bilerek eklenince test kırmızıya düştü — kanıt.

@@ -145,11 +145,12 @@ test('demodan kendi işletmesine geçiş tek adımda', async ({ page }) => {
   await stubNetwork(page);
   await page.goto('/');
   await page.getByRole('button', { name: 'Demo işletmeyle keşfet' }).click();
-  await expect(page.getByText('Demo işletme', { exact: true })).toBeVisible();
+  // Uzun bekleme yalnızca Windows WebKit'in yavaş IndexedDB'si için (bkz. helpers.openDemo)
+  await expect(page.getByText('Demo işletme', { exact: true })).toBeVisible({ timeout: 45_000 });
   await page.getByRole('button', { name: 'Kendi işletmemi kur' }).click();
   await page.getByRole('dialog').getByRole('button', { name: 'Devam et' }).click();
-  // Karşılama ekranında kurulum penceresi kendiliğinden açılır
-  await expect(page.getByRole('dialog').getByRole('heading', { name: 'İşletmenizi kurun' })).toBeVisible();
+  // Karşılama ekranında kurulum penceresi kendiliğinden açılır (demo verisinin silinmesi Windows WebKit'te yavaş)
+  await expect(page.getByRole('dialog').getByRole('heading', { name: 'İşletmenizi kurun' })).toBeVisible({ timeout: 45_000 });
   expect(errors, errors.join('\n')).toEqual([]);
 });
 

@@ -110,8 +110,11 @@ test('ayın hikâyesi (GSAP kaydırma)', async ({ page }, info) => {
   await snap(page, info, 'hikaye-ust');
   // Sona kadar kaydır: tüm bölümler görünür hale gelmeli
   const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  // Masaüstünde fare tekerleği; telefon WebKit'inde tekerlek yok (Playwright desteklemiyor), sayfa kaydırılır
+  const wheel = info.project.name !== 'safari-iphone';
   for (let y = 0; y < height; y += 700) {
-    await page.mouse.wheel(0, 700);
+    if (wheel) await page.mouse.wheel(0, 700);
+    else await page.evaluate(() => window.scrollBy(0, 700));
     await page.waitForTimeout(120);
   }
   await page.waitForTimeout(800);

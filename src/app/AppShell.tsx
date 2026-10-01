@@ -35,6 +35,7 @@ import { CloudStatusBadge } from '@/cloud/ui';
 import { DemoBanner } from './DemoBanner';
 import { cloudAvailable } from '@/features/ayarlar/CloudSection';
 import { ensurePersistentStorage } from '@/data/persist';
+import { prefetchPages } from './pages';
 
 function RailLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const Icon = item.icon;
@@ -325,6 +326,8 @@ export function AppShell() {
   useEffect(() => {
     if (!f.settings.isDemo) void ensurePersistentStorage();
   }, [f.settings.isDemo]);
+  // Diğer sayfaların kodunu boşta indir: ilk geçişte ağ beklenmesin
+  useEffect(() => prefetchPages(), []);
   return (
     <div className="grain relative flex min-h-dvh">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2">

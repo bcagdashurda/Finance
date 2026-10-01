@@ -1,8 +1,9 @@
 import { createBrowserRouter, isRouteErrorResponse, Link, useRouteError } from 'react-router';
 import { AppShell } from './AppShell';
 import { Splash } from './Splash';
+import { PAGES, type PageModule } from './pages';
 
-const page = (loader: () => Promise<{ default: React.ComponentType }>) => async () => {
+const page = (loader: PageModule) => async () => {
   const m = await loader();
   return { Component: m.default };
 };
@@ -34,18 +35,18 @@ export const router = createBrowserRouter([
     hydrateFallbackElement: <Splash />,
     errorElement: <RouteError />,
     children: [
-      { index: true, lazy: page(() => import('@/features/kokpit/KokpitPage')) },
-      { path: 'akis', lazy: page(() => import('@/features/akis/AkisPage')) },
-      { path: 'takvim', lazy: page(() => import('@/features/takvim/TakvimPage')) },
-      { path: 'islemler', lazy: page(() => import('@/features/islemler/IslemlerPage')) },
-      { path: 'hesaplar', lazy: page(() => import('@/features/hesaplar/HesaplarPage')) },
-      { path: 'hesaplar/:id', lazy: page(() => import('@/features/hesaplar/HesapDetayPage')) },
-      { path: 'cariler', lazy: page(() => import('@/features/cariler/CarilerPage')) },
-      { path: 'cariler/:id', lazy: page(() => import('@/features/cariler/CariDetayPage')) },
-      { path: 'cekler', lazy: page(() => import('@/features/cekler/CeklerPage')) },
-      { path: 'raporlar', lazy: page(() => import('@/features/raporlar/RaporlarPage')) },
-      { path: 'hikaye', lazy: page(() => import('@/features/hikaye/HikayePage')) },
-      { path: 'ayarlar', lazy: page(() => import('@/features/ayarlar/AyarlarPage')) },
+      { index: true, lazy: page(PAGES.kokpit) },
+      { path: 'akis', lazy: page(PAGES.akis) },
+      { path: 'takvim', lazy: page(PAGES.takvim) },
+      { path: 'islemler', lazy: page(PAGES.islemler) },
+      { path: 'hesaplar', lazy: page(PAGES.hesaplar) },
+      { path: 'hesaplar/:id', lazy: page(PAGES.hesapDetay) },
+      { path: 'cariler', lazy: page(PAGES.cariler) },
+      { path: 'cariler/:id', lazy: page(PAGES.cariDetay) },
+      { path: 'cekler', lazy: page(PAGES.cekler) },
+      { path: 'raporlar', lazy: page(PAGES.raporlar) },
+      { path: 'hikaye', lazy: page(PAGES.hikaye) },
+      { path: 'ayarlar', lazy: page(PAGES.ayarlar) },
       { path: '*', element: <RouteError /> },
     ],
   },
