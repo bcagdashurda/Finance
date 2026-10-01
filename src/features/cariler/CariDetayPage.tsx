@@ -277,8 +277,9 @@ export default function CariDetayPage() {
           }
         />
 
+        {/* Ekstre telefonda yana kayar: klavyeyle odaklanıp ok tuşlarıyla kaydırılabilsin (WCAG 2.1.1) */}
         {tab === 'statement' && (
-          <div className="-mx-2 overflow-x-auto">
+          <div tabIndex={0} role="region" aria-label="Cari hesap ekstresi" className="-mx-2 overflow-x-auto rounded-[12px] outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--cobalt)]">
             <table className="w-full min-w-[640px] text-sm">
               <thead>
                 <tr className="text-left text-2xs text-muted">

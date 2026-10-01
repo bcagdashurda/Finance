@@ -123,6 +123,26 @@ create trigger mizan_touch_workspaces
   before insert or update on public.workspaces
   for each row execute function public.mizan_touch();
 
+-- Güncelleme politikası düzenleyicilere de açık: owner_id'yi yalnızca sahip değiştirebilsin
+-- (yoksa düzenleyici işletme satırını başka bir kullanıcıya "devredebilirdi")
+create or replace function public.mizan_guard_workspace_owner()
+returns trigger
+language plpgsql
+set search_path = public
+as $$
+begin
+  if new.owner_id is distinct from old.owner_id and not public.mizan_is_owner(old.id) then
+    raise exception 'İşletme sahipliğini yalnızca sahibi değiştirebilir';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists mizan_guard_workspace_owner on public.workspaces;
+create trigger mizan_guard_workspace_owner
+  before update on public.workspaces
+  for each row execute function public.mizan_guard_workspace_owner();
+
 -- -----------------------------------------------------------------------------
 -- Hesaplar
 -- -----------------------------------------------------------------------------

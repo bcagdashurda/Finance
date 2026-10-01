@@ -54,14 +54,14 @@ test('sıkışma yok: Kokpit rakamları, cari adları, rapor Toplam sütunu', as
     const hero = document.querySelector('main section.panel')!;
     const hr = hero.getBoundingClientRect();
     const big = hero.querySelector('div.display')!;
-    const range = document.createRange();
-    range.selectNodeContents(big);
+    // Yalnızca görünen parçalar: ekran okuyucu için eklenen gizli tam tutar (.sr-only) kırpılıdır, ölçülmez
+    const visibleRight = Math.max(...[...big.querySelectorAll('.odometer > :not(.sr-only)')].map((p) => p.getBoundingClientRect().right));
     const kpis = [...hero.querySelectorAll('a .display')].map((v) => {
       const a = v.closest('a')!.getBoundingClientRect();
       const r = v.getBoundingClientRect();
       return { text: v.textContent, fits: r.left >= a.left && r.right <= a.right - 8 };
     });
-    return { bigFits: range.getBoundingClientRect().right <= hr.right - 16, kpis };
+    return { bigFits: visibleRight <= hr.right - 16, kpis };
   });
   expect(kokpit.bigFits, 'Nakit pozisyonu rakamı panelden taşıyor').toBe(true);
   for (const k of kokpit.kpis) expect(k.fits, `Gösterge tutarı sıkışık: ${k.text}`).toBe(true);

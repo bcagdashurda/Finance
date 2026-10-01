@@ -138,7 +138,7 @@ function Wizard({ onDone }: { onDone: () => void }) {
             if (file) void onFile(file);
           }}
           className={cn(
-            'flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[22px] border-2 border-dashed px-6 py-14 text-center transition-colors',
+            'flex cursor-pointer flex-col items-center justify-center gap-3 rounded-[22px] border-2 border-dashed px-6 py-14 text-center transition-colors focus-within:border-cobalt focus-within:shadow-[0_0_0_3px_color-mix(in_oklab,var(--cobalt)_22%,transparent)]',
             drag ? 'border-cobalt bg-cobalt-soft/50' : 'border-line-strong hover:border-cobalt/60 hover:bg-surface-2',
           )}
         >

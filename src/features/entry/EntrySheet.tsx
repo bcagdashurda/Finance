@@ -678,6 +678,8 @@ function ReceiptButton({ onRead }: { onRead: (patch: Partial<FormState>) => void
         type="file"
         accept="image/*,application/pdf"
         capture="environment"
+        aria-label="Fiş ya da fatura fotoğrafı seç"
+        tabIndex={-1}
         className="sr-only"
         onChange={async (e) => {
           const file = e.target.files?.[0];

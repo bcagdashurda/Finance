@@ -28,6 +28,14 @@ interface RosetteProps {
  */
 export function Rosette({ months, size = 380, centerLabel, centerValue, delay = 0.2 }: RosetteProps) {
   const [hover, setHover] = useState<number | null>(null);
+  // Klavye: rozet tek Tab durağı (en güncel ay), aylar arasında ok tuşlarıyla gezilir (12 durak yerine 1)
+  const [focusIdx, setFocusIdx] = useState(Math.max(0, months.length - 1));
+  const hitRefs = useRef<Array<SVGPathElement | null>>([]);
+  const moveFocus = (to: number) => {
+    const next = Math.min(months.length - 1, Math.max(0, to));
+    setFocusIdx(next);
+    hitRefs.current[next]?.focus();
+  };
   const ref = useRef<SVGSVGElement>(null);
   const px = useMotionValue(0);
   const py = useMotionValue(0);
@@ -91,8 +99,9 @@ export function Rosette({ months, size = 380, centerLabel, centerValue, delay = 
         viewBox={`0 0 ${size} ${size}`}
         width={size}
         height={size}
-        role="img"
-        aria-label="Son 12 ayın net nakit akışı rozeti"
+        // group: içindeki odaklanabilir halkalar okunabilsin (img rolünün çocukları erişilebilirlik ağacından düşer)
+        role="group"
+        aria-label="Son 12 ayın net nakit akışı rozeti — aylar arasında ok tuşlarıyla gezin"
         style={{ rotateX: rotX, rotateY: rotY, transformStyle: 'preserve-3d' }}
       >
         <g className="slow-spin-reverse" opacity={0.55}>
@@ -133,10 +142,28 @@ export function Rosette({ months, size = 380, centerLabel, centerValue, delay = 
             fill="none"
             stroke="transparent"
             strokeWidth={Math.max(8, gap)}
+            ref={(el) => {
+              hitRefs.current[i] = el;
+            }}
             onPointerEnter={() => setHover(i)}
-            onFocus={() => setHover(i)}
+            onFocus={() => {
+              setHover(i);
+              setFocusIdx(i);
+            }}
             onBlur={() => setHover(null)}
-            tabIndex={0}
+            onKeyDown={(e) => {
+              const step = { ArrowRight: 1, ArrowUp: 1, ArrowLeft: -1, ArrowDown: -1 }[e.key];
+              if (step) {
+                e.preventDefault();
+                moveFocus(i + step);
+              } else if (e.key === 'Home' || e.key === 'End') {
+                e.preventDefault();
+                moveFocus(e.key === 'Home' ? 0 : months.length - 1);
+              }
+            }}
+            tabIndex={i === focusIdx ? 0 : -1}
+            aria-roledescription="ay halkası"
+            role="img"
             aria-label={`${rings[i]!.m.label}: net ${formatMoney(rings[i]!.m.net, 'TRY', { sign: 'always', decimals: 0 })}`}
             style={{ outline: 'none', cursor: 'crosshair' }}
           />

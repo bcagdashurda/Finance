@@ -22,7 +22,8 @@
   --ink: #0f1a3d;
   --ink-2: #2b365a;
   --ink-muted: #5a6582;
-  --ink-faint: #8a93aa;
+  /* WCAG AA: en koyu zeminde (#eaeef4) 4,63:1 — eski #8a93aa 2,64:1 idi */
+  --ink-faint: #616a82;
   --ink-inverse: #ffffff;
 
   /* Çizgiler */
@@ -78,7 +79,7 @@
     --ink: #e7ecf7;
     --ink-2: #c6cde0;
     --ink-muted: #97a1ba;
-    --ink-faint: #6c7794;
+    --ink-faint: #848fab; /* AA: en açık koyu panelde (#151f3c) 5,03:1 */
     --ink-inverse: #0a1024;
     --line: rgb(199 210 240 / 0.1);
     --line-strong: rgb(199 210 240 / 0.18);
@@ -121,7 +122,7 @@
   --ink: #e7ecf7;
   --ink-2: #c6cde0;
   --ink-muted: #97a1ba;
-  --ink-faint: #6c7794;
+  --ink-faint: #848fab;
   --ink-inverse: #0a1024;
   --line: rgb(199 210 240 / 0.1);
   --line-strong: rgb(199 210 240 / 0.18);
@@ -412,7 +413,7 @@
     --ink: #0f1a3d;
     --ink-2: #2b365a;
     --ink-muted: #5a6582;
-    --ink-faint: #8a93aa;
+    --ink-faint: #616a82;
     --ink-inverse: #ffffff;
     --line: rgb(15 26 61 / 0.14);
     --line-strong: rgb(15 26 61 / 0.24);

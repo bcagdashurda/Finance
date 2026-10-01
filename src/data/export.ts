@@ -10,7 +10,10 @@ export interface Column<T> {
 
 function escapeCell(v: string | number | null | undefined): string {
   if (v === null || v === undefined) return '';
-  const s = typeof v === 'number' ? String(v).replace('.', ',') : v;
+  let s = typeof v === 'number' ? String(v).replace('.', ',') : v;
+  // CSV formül enjeksiyonu: ekstreden gelen "=HYPERLINK(…)" gibi metinler Excel'de formül olarak çalışır.
+  // Başına ' konur (Excel metin sayar); "-95000,00" gibi saf sayılar dokunulmadan kalır.
+  if (typeof v === 'string' && /^[=+\-@\t\r]/.test(s) && !/^-?\d+(?:[.,]\d+)?$/.test(s)) s = `'${s}`;
   return /[;"\n\r]/.test(s) ? `"${s.replace(/"/g, '""')}"` : s;
 }
 

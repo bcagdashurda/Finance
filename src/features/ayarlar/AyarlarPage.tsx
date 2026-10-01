@@ -768,6 +768,8 @@ function DataSection() {
                 ref={fileRef}
                 type="file"
                 accept="application/json,.json"
+                aria-label="Yedek dosyası seç"
+                tabIndex={-1}
                 className="sr-only"
                 onChange={async (e) => {
                   const file = e.target.files?.[0];

@@ -89,7 +89,8 @@ export function Monogram({ name, size = 36, className }: { name: string; size?: 
         width: size,
         height: size,
         fontSize: size * 0.38,
-        color: `var(--cat-${slot})`,
+        // Kategori rengi mürekkeple karıştırılır: hardal gibi açık tonlar zeminde 2,9:1 kalıyordu (AA için ≥4,5)
+        color: `color-mix(in oklab, var(--cat-${slot}) 65%, var(--ink))`,
         background: `color-mix(in oklab, var(--cat-${slot}) 12%, var(--surface))`,
         boxShadow: `inset 0 0 0 1px color-mix(in oklab, var(--cat-${slot}) 28%, transparent)`,
       }}

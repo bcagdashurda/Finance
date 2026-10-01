@@ -50,7 +50,9 @@ export function Money({
   const p = moneyParts(value, currency);
   const signChar = p.negative && sign !== 'never' ? '−' : sign === 'always' && value > 0 ? '+' : '';
   return (
-    <span className={cn('num whitespace-nowrap', toneClass(tone, value), className)} aria-label={label}>
+    // Rolsüz span'da aria-label okunmaz (WCAG 4.1.2): tam tutar ekran okuyucuya gizli metinle, parçalar gizli
+    <span className={cn('num whitespace-nowrap', toneClass(tone, value), className)}>
+      <span className="sr-only">{label}</span>
       <span aria-hidden>
         {signChar}
         <span className="opacity-60">{p.symbol}</span>

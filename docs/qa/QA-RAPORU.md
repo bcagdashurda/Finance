@@ -200,3 +200,35 @@ Taranan: 1024, 1180, 1280, 1366, 1440, 1920, 2560 ve 768 px'te 14 ekran — sayf
 Kalıcı test: "sıkışma yok" (Kokpit rakamları, cari ad sütunu, rapor "Toplam"ı) 7 ekran boyutunda geçiyor. İlk yazdığım sürüm yanlış ölçüyordu (metnin kendi genişliği) ve her yerde kırmızıydı; düzeltildi. Eski Cariler düzeni bilerek geri getirilince test 1024'te kırmızıya düştü (144 < 180 px) — kanıt.
 
 Ekran: `s14-1920-rapor-tablo-once.png` (önce), `s14-rapor-tablo-*.png`, `s14-1024-*.png`, `s14-14gun-*-v2.png`, `s14-rapor-sekme-*.png`
+
+## Erişilebilirlik (WCAG 2.2 AA) — 🔧
+
+Yöntem: axe-core (sektör standardı denetim motoru) canlı sayfalarda; açık ve koyu tema, masaüstü ve telefon, kayıt penceresi açıkken; ardından klavyeyle gezinme denetimi. Statik kod tarayıcısı da çalıştırıldı ama bulgularının çoğu yanlış alarmdı (ör. etiketleri `Field` bileşeni üzerinden geçen alanları "etiketsiz" sayıyor); bu yüzden yalnızca canlı sonuçlara güvenildi.
+
+Bulunan ve düzeltilen:
+- **Kontrast (her sayfada):** "soluk" metin rengi zeminde 2,64:1 (gereken 4,5:1). Açık temada #8a93aa → #616a82 (4,63:1), koyu temada #6c7794 → #848fab (5,03:1). 13 dosyadaki 22 kullanım tek değişkenle düzeldi.
+- **Baş harf rozetleri:** hardal tonunda 2,87:1 → renk mürekkeple karıştırıldı (~5,2:1).
+- **Ekran okuyucu tutarları okumuyordu:** tutar ve sayaç bileşenlerinde rolsüz `aria-label` (ve standart dışı `role="text"`) kullanılmıştı → tam tutar gizli metin olarak.
+- **Nakit ritmi rozeti:** grafik `img` rolündeyken içindeki ay halkaları erişilebilirlik ağacından düşüyordu → grup + her halka adlı; klavyede 12 Tab durağı yerine tek durak, aylar arasında ok tuşları (Home/End dahil).
+- **Klavyeyle kaydırılamayan tablolar:** rapor, KDV ve cari ekstresi tabloları (dar ekranda yana kayıyor) odaklanabilir bölge oldu, odak çerçevesi görünür.
+- Etiketsiz dosya girişleri (yedek, fiş), sürükle-bırak alanlarında görünmeyen klavye odağı.
+
+Doğrulanan: Kokpit'te ilk 32 Tab durağının hepsinde görünür odak, sıra mantıklı (menü → arama → kayıt → içerik). Kayıt penceresinde axe'in kontrastı hesaplayamadığı 3 öğe elle ölçüldü (geçiyor).
+Kalıcı test: `e2e/erisilebilirlik.spec.ts` — 11 sayfa + 2 detay + kayıt penceresi, açık/koyu tema, masaüstü/telefon: 0 ihlal. İlk koşusu, canlı taramamın kaçırdığı iki sorunu yakaladı (telefonda KDV tablosu, cari rozet kontrastı). Soluk renk bilerek eski değerine döndürülünce test her sayfada kırmızıya düştü — kanıt.
+
+Ekran: `a11y-cariler-acik.png`, `a11y-cariler-koyu.png`
+
+## Güvenlik gözden geçirmesi — 🔧
+
+Bakılanlar: HTML/betik enjeksiyonu, dışa aktarılan dosyalar, anahtar saklama, Supabase satır düzeyi güvenliği (RLS), sunucu fonksiyonları, yayın başlıkları.
+
+Bulunan ve düzeltilen:
+- **CSV formül enjeksiyonu (OWASP):** cari ekstresi CSV'ye aktarılırken açıklamalar olduğu gibi yazılıyordu; bankadan gelen `=HYPERLINK(…)` gibi bir açıklama Excel'de formül olarak çalışırdı. `= + - @` ile başlayan metinlerin başına `'` konuyor; negatif tutarlar sayı olarak kalıyor (birim testli, önce kırmızı görüldü).
+- **İşletme sahipliği:** güncelleme politikası düzenleyicilere açık olduğundan bir düzenleyici işletme satırının `owner_id`'sini başka kullanıcıya yazabiliyordu. Sunucu tarafında tetikleyiciyle yalnızca sahibe izin veriliyor. (Uygulama senkronda `owner_id` göndermediği doğrulandı; senkron etkilenmez.)
+- **İçerik Güvenlik Politikası (CSP) yoktu:** Vercel ve Netlify başlıklarına eklendi. Betikler yalnızca kendi dosyalarımızdan ve özetiyle izinli tema betiğinden çalışabilir; çerçeveye gömme, eklenti ve yabancı `<base>` yasak. Bağlantı kuralı bilerek geniş (yalnızca https/wss): Supabase ve "OpenAI uyumlu" yapay zekâ adresleri kullanıcı tarafından girilebiliyor.
+  - Birim test: iki dosyadaki politika aynı ve tema betiğinin özeti doğru (betik değişip özet güncellenmezse test kırmızı).
+  - Uçtan uca test: üretim derlemesi bu politika altında açılıyor, gezinilip kayıt penceresi açılıyor, konsolda engelleme yok; politikanın gerçekten uygulandığını kanıtlamak için özetsiz bir betiğin engellendiği de doğrulanıyor.
+
+Sorunsuz bulunanlar: kodda `dangerouslySetInnerHTML`/`eval` yok (React tüm metni kaçışlıyor); raporlama görünümleri `security_invoker` ile RLS'ye tabi; yetkili fonksiyonlar `search_path` sabit ve sahiplik denetimli; Groq anahtarı yayın kurulumunda sunucuda (Edge Function), yalnızca giriş yapmış kullanıcıya; yedekler anahtar ve PIN içermiyor; `.env.local` git'e gitmiyor.
+
+Bilinçli kabul edilen (belgelendi): PIN kilidi şifreleme değil gizlilik kilidi; yerel veriler tarayıcıda şifresiz (bulutta RLS ile korunur); ekip ekleme ekranı bir e-postanın kayıtlı olup olmadığını sahibine söyler; Edge Function'da kullanıcı başına hız sınırı yok (küçük ekipler için yeterli, büyürse eklenmeli).

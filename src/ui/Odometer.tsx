@@ -63,7 +63,9 @@ export function Odometer({
   let digitIndexFromLeft = 0;
 
   return (
-    <span className={cn('odometer', className)} aria-label={formatMoney(value, currency)} role="text">
+    // role="text" standart değil, rolsüz aria-label okunmaz: tutar gizli metinle, dönen rakamlar gizli
+    <span className={cn('odometer', className)}>
+      <span className="sr-only">{formatMoney(value, currency)}</span>
       {p.negative && <span aria-hidden>−</span>}
       <span aria-hidden className={cn('odometer-symbol', symbolClassName)}>
         {p.symbol}

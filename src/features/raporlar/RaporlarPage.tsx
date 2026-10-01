@@ -316,7 +316,14 @@ function PnlView({
       </Panel>
       <Panel reveal={1} padded={false}>
         {/* Sığmadığında: "Kalem" solda, "Toplam" sağda sabit; yalnızca aylar kayar ve açılışta en güncel aylar görünür */}
-        <div ref={scroller} className="scroll-table scrollbar-thin overflow-x-auto">
+        {/* tabIndex: klavye kullanıcısı odaklanıp ok tuşlarıyla aylara kaydırabilsin (WCAG 2.1.1) */}
+        <div
+          ref={scroller}
+          tabIndex={0}
+          role="region"
+          aria-label={cashflow ? 'Aylık nakit akış tablosu' : 'Aylık gelir-gider tablosu'}
+          className="scroll-table scrollbar-thin overflow-x-auto rounded-b-[inherit] outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--cobalt)]"
+        >
           <table className="w-full min-w-[900px] text-xs">
             <thead>
               <tr className="border-b border-line bg-surface text-muted">
@@ -552,7 +559,7 @@ function KdvView({ from, to }: { from: ISODate; to: ISODate }) {
       <div className="px-6 pt-5">
         <PanelHeader title="KDV özeti" description="Belgelerdeki KDV tutarlarından hesaplanır; beyanname yerine geçmez, mali müşavirinizle doğrulayın." />
       </div>
-      <div className="overflow-x-auto">
+      <div tabIndex={0} role="region" aria-label="KDV özeti tablosu" className="overflow-x-auto outline-none focus-visible:shadow-[inset_0_0_0_2px_var(--cobalt)]">
         <table className="w-full min-w-[640px] text-sm">
           <thead>
             <tr className="border-y border-line text-2xs text-muted">
