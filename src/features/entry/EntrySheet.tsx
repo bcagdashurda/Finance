@@ -380,7 +380,9 @@ function EntryForm({ draft, onDone }: { draft: EntryDraft; onDone: () => void })
 
       if (!editing && isLedgerKind(s.kind)) {
         setStamp({ label: s.kind === 'collect' ? 'TAHSİL EDİLDİ' : 'ÖDENDİ', tone: s.kind === 'collect' ? 'in' : 'out' });
-        window.setTimeout(onDone, 1100);
+        // Kayıt ~40 ms'de biter; mühür (0,7 sn'lik animasyon) kısa bir onay. Arka arkaya kayıtta beklemek
+        // yormasın: 1,1 sn → 0,8 sn; azaltılmış hareket tercihinde hiç beklenmez.
+        window.setTimeout(onDone, window.matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 800);
       } else {
         onDone();
       }

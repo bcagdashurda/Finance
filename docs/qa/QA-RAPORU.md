@@ -251,3 +251,17 @@ Yapılan:
 Testler: birim (Gemini istemcisi 9, hesap eşitleme 7, ortam ayarı 3) ve uçtan uca "yapay zekâ ayarı sade" (Supabase yok, rehber adımları ve bağlantıları, anahtardan servis tanıma) — Gemini anahtar tanıma bilerek bozulunca kırmızıya düştü. Gerçek yanıtlarla deneme (S15) bir Groq/Gemini anahtarı girildiğinde yapılacak.
 
 Ekran: `ai-fayda-1366.png`, `ai-kullanim-1366.png`, `ai-rehber-groq-*.png`, `ai-rehber-gemini-1.png`, `ai-bagli-*.png`, `ai-ayar-375.png`, `ai-rehber-375.png`
+
+## Performans (üretim derlemesi, yerel sunucu, 1366×800) — 🔧
+
+| Ölçüm | Süre |
+|---|---|
+| İlk açılış (karşılama görünür) | 175 ms · 423 KB indirme |
+| Demo → Kokpit | 272 ms |
+| Kayıt penceresi açılışı (5 denemenin ortancası) | 56 ms |
+| Kaydın kendisi (Kaydet → "kaydedildi" bildirimi) | 36–44 ms |
+| Sayfa geçişleri | 61–110 ms |
+
+Geliştirme sunucusunda ölçülen "Kaydet → pencere kapanması 1,9 sn" ayrıştırıldı: kayıt 40 ms; kalanı kapanış animasyonu ve tahsilat/ödemelerdeki "TAHSİL EDİLDİ" mührü için **bilerek konmuş 1,1 sn bekleme**. Arka arkaya kayıt giren için uzun → 0,8 sn'ye indirildi (mühür animasyonu 0,7 sn), azaltılmış hareket tercihinde beklenmez.
+İkon paketi 351 KB (sıkıştırılmış 78 KB): ağaç sallama çalışıyor (kullanılan 129 ikon = paketteki 129); boyut her ikonun 6 ağırlık çizimini taşımasından. Bir kez indirilip uzun süre önbellekte kaldığı için bırakıldı.
+Not: ölçümler hızlı bir bilgisayarda; orta seviye bir telefonda birkaç kat uzun sürebilir (gerçek cihazda ölçülmedi).
