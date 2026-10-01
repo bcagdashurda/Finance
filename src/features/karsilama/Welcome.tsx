@@ -2,9 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from 'motion/react';
 import { toast } from 'sonner';
 import { ArrowRight, LockSimple, Waves, Signature, Microphone, CloudArrowDown } from '@phosphor-icons/react';
-import { db } from '@/data/db';
-import { SETTINGS_KEYS } from '@/data/keys';
-import { ensureClient, envCloudConfig, saveCloudConfig, testConnection, useCloud } from '@/cloud/store';
+import { ensureClient, envCloudConfig, useCloud } from '@/cloud/store';
 import { CloudAuthForm, RemoteWorkspacePicker, Steps } from '@/cloud/ui';
 import { loadDemo, setupWorkspace } from '@/data/load';
 import { LogoMark, Wordmark } from '@/ui/Logo';
@@ -114,16 +112,19 @@ export function Welcome() {
               Kendi işletmemi kur
             </Button>
           </motion.div>
-          <motion.button
-            type="button"
-            onClick={() => setCloudOpen(true)}
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            transition={{ delay: 1.1 }}
-            className="mt-4 inline-flex items-center gap-1.5 text-sm text-cobalt-ink underline-offset-4 hover:underline"
-          >
-            <CloudArrowDown size={16} /> Başka cihazda kullanıyorum: buluttaki işletmeme bağlan
-          </motion.button>
+          {/* Bulut, kurulumu yapan kişinin ayarıyla (.env) gelir; kullanıcıya teknik bağlantı adımı gösterilmez */}
+          {envCloudConfig() && (
+            <motion.button
+              type="button"
+              onClick={() => setCloudOpen(true)}
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.1 }}
+              className="mt-4 inline-flex items-center gap-1.5 text-sm text-cobalt-ink underline-offset-4 hover:underline"
+            >
+              <CloudArrowDown size={16} /> Başka cihazda kullanıyorum: hesabıma giriş yap
+            </motion.button>
+          )}
           <motion.ul
             className="mt-12 grid max-w-xl gap-4 sm:grid-cols-3"
             initial="hidden"
@@ -256,60 +257,21 @@ function WelcomeArt({ px, py }: { px: MotionValue<number>; py: MotionValue<numbe
   );
 }
 
-/** İkinci cihaz: Supabase bağlantısı → giriş → buluttaki işletmeyi indir. */
+/** İkinci cihaz: hesaba giriş → buluttaki işletmeyi indir. Bağlantı bilgisi kurulumdan (.env) gelir. */
 function CloudConnectModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
   const session = useCloud((s) => s.session);
-  const client = useCloud((s) => s.client);
-  const [url, setUrl] = useState('');
-  const [key, setKey] = useState('');
-  const [busy, setBusy] = useState(false);
 
   useEffect(() => {
-    if (!open) return;
     const env = envCloudConfig();
-    if (env) {
-      ensureClient(env);
-      return;
-    }
-    void db.settings.get(SETTINGS_KEYS.cloud).then((row) => {
-      const cfg = row?.value as { url?: string; anonKey?: string } | undefined;
-      if (cfg?.url && cfg.anonKey) ensureClient({ url: cfg.url, anonKey: cfg.anonKey });
-    });
+    if (open && env) ensureClient(env);
   }, [open]);
 
-  const step = !client ? 0 : !session ? 1 : 2;
+  const step = !session ? 0 : 1;
   return (
-    <Modal open={open} onOpenChange={onOpenChange} title="Buluttaki işletmeme bağlan" description="Başka bir cihazda kullandığınız Mizan verilerini bu cihaza indirin." className="max-w-xl">
-      <Steps steps={['Bağlantı', 'Giriş', 'İşletme']} current={step} />
-      {step === 0 && (
-        <div className="space-y-3">
-          <Field label="Supabase Project URL">{(p) => <TextInput {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://abcd1234.supabase.co" />}</Field>
-          <Field label="anon public anahtarı">{(p) => <TextInput {...p} value={key} onChange={(e) => setKey(e.target.value)} className="num" />}</Field>
-          <div className="flex justify-end">
-            <Button
-              variant="primary"
-              loading={busy}
-              disabled={!url || !key}
-              onClick={async () => {
-                setBusy(true);
-                try {
-                  await testConnection(url, key);
-                  await saveCloudConfig({ url: url.trim().replace(/\/$/, ''), anonKey: key.trim(), linked: [] });
-                  ensureClient({ url: url.trim().replace(/\/$/, ''), anonKey: key.trim() });
-                } catch (e) {
-                  toast.error('Bağlanılamadı', { description: e instanceof Error ? e.message : '' });
-                } finally {
-                  setBusy(false);
-                }
-              }}
-            >
-              Bağlan
-            </Button>
-          </div>
-        </div>
-      )}
-      {step === 1 && <CloudAuthForm />}
-      {step === 2 && <RemoteWorkspacePicker localIds={[]} onDownloaded={() => onOpenChange(false)} />}
+    <Modal open={open} onOpenChange={onOpenChange} title="Hesabıma giriş yap" description="Başka bir cihazda kullandığınız Mizan verilerini bu cihaza indirin." className="max-w-xl">
+      <Steps steps={['Giriş', 'İşletme']} current={step} />
+      {step === 0 && <CloudAuthForm />}
+      {step === 1 && <RemoteWorkspacePicker localIds={[]} onDownloaded={() => onOpenChange(false)} />}
     </Modal>
   );
 }

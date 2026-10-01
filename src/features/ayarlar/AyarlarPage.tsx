@@ -9,25 +9,20 @@ import {
   LockSimple,
   Database,
   Palette,
-  ArrowSquareOut,
-  CheckCircle,
   PencilSimple,
   Plus,
   ArrowsClockwise,
   Keyboard,
   Cloud,
-  Copy,
 } from '@phosphor-icons/react';
-import { CloudSection } from './CloudSection';
-import aiProxySource from '../../../supabase/functions/ai-proxy/index.ts?raw';
-import { useAi } from '@/ai/useAi';
-import { envCloudConfig, useCloud } from '@/cloud/store';
+import { CloudSection, cloudAvailable } from './CloudSection';
+import { AiSection } from './AiSection';
 import { useFinance } from '@/app/finance';
 import { useUI, type ThemePref } from '@/app/ui-store';
 import { PageHeader } from '@/ui/PageHeader';
 import { Panel, PanelHeader } from '@/ui/Panel';
 import { Button } from '@/ui/Button';
-import { Field, MoneyInput, Select, TextInput } from '@/ui/Field';
+import { Field, MoneyInput, TextInput } from '@/ui/Field';
 import { Segmented } from '@/ui/Segmented';
 import { Badge, Kbd, MOD_KEY, Toggle } from '@/ui/bits';
 import { Modal } from '@/ui/Overlay';
@@ -35,10 +30,6 @@ import { Money } from '@/ui/Money';
 import { CategoryIcon, CATEGORY_ICON_KEYS } from '@/ui/icons';
 import { cn, slotColor } from '@/ui/cn';
 import { formatDate } from '@/ui/format';
-import { getAiUsage, listModels, onAiUsage, pickModel, type AiUsage } from '@/ai/client';
-import { listGeminiModels } from '@/ai/gemini';
-import { saveAiConfig } from '@/ai/useAi';
-import { GROQ_BASE, type AiConfig } from '@/ai/config';
 import { isValidTaxId } from '@/domain/validators';
 import { diffDays, toISODate } from '@/domain/dates';
 import type { Category } from '@/domain/types';
@@ -47,12 +38,13 @@ import { SETTINGS_KEYS, loadDemo, wipeEverything } from '@/data/load';
 import { exportBackup, restoreBackup, validateBackup, type Backup } from '@/data/backup';
 import { fetchLatestRates, setManualRate } from '@/data/rates';
 import { download } from '@/data/export';
+import { ensurePersistentStorage, isStoragePersistent } from '@/data/persist';
 import { hashPin, lockNow, newSalt } from '@/app/lock';
 
 const SECTIONS = [
   { id: 'isletme', label: 'İşletme', icon: Buildings },
   { id: 'yapay-zeka', label: 'Yapay zekâ', icon: Sparkle },
-  { id: 'bulut', label: 'Bulut senkronu', icon: Cloud },
+  { id: 'bulut', label: 'Hesap ve eşitleme', icon: Cloud },
   { id: 'kategoriler', label: 'Kategoriler ve bütçe', icon: Tag },
   { id: 'kurlar', label: 'Döviz kurları', icon: CurrencyCircleDollar },
   { id: 'guvenlik', label: 'Güvenlik', icon: LockSimple },
@@ -62,6 +54,7 @@ const SECTIONS = [
 
 export default function AyarlarPage() {
   const location = useLocation();
+  const cloud = cloudAvailable(useFinance().settings.cloud);
   useEffect(() => {
     const id = location.hash.slice(1);
     if (id) window.setTimeout(() => document.getElementById(id)?.scrollIntoView({ behavior: 'smooth', block: 'start' }), 300);
@@ -69,10 +62,10 @@ export default function AyarlarPage() {
 
   return (
     <div>
-      <PageHeader kicker="İşletme, yapay zekâ, bulut, güvenlik ve yedek" title="Ayarlar" />
+      <PageHeader kicker="İşletme, yapay zekâ, güvenlik ve yedek" title="Ayarlar" />
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[220px_minmax(0,1fr)]">
         <nav className="sticky top-24 hidden h-fit space-y-1 lg:block" aria-label="Ayar bölümleri">
-          {SECTIONS.map((s) => (
+          {SECTIONS.filter((s) => s.id !== 'bulut' || cloud).map((s) => (
             <a key={s.id} href={`#${s.id}`} className="flex items-center gap-2.5 rounded-[12px] px-3 py-2 text-sm text-muted transition-colors hover:bg-surface hover:text-ink">
               <s.icon size={17} /> {s.label}
             </a>
@@ -80,7 +73,7 @@ export default function AyarlarPage() {
         </nav>
         <div className="min-w-0 space-y-5">
           <BusinessSection />
-          <AiSection />
+          <AiSection index={1} />
           <CloudSection index={2} />
           <CategoriesSection />
           <RatesSection />
@@ -148,327 +141,6 @@ function BusinessSection() {
 }
 
 // ---------------------------------------------------------------------------
-
-function AiSection() {
-  const f = useFinance();
-  const cfg = f.settings.ai;
-  const [key, setKey] = useState(cfg.apiKey);
-  const [baseUrl, setBaseUrl] = useState(cfg.baseUrl);
-  const [models, setModels] = useState<string[]>([]);
-  const [testing, setTesting] = useState(false);
-  const [consentOpen, setConsentOpen] = useState(false);
-  const [gKey, setGKey] = useState(cfg.gemini?.apiKey ?? '');
-  const [gModels, setGModels] = useState<string[]>([]);
-  const save = (patch: Partial<AiConfig>) => saveAiConfig(cfg, patch);
-
-  async function test() {
-    setTesting(true);
-    try {
-      const list = await listModels({ apiKey: key.trim(), baseUrl });
-      setModels(list);
-      // Varsayılan modeller hesapta yoksa (Groq model kaldırırsa) en uygununu seç
-      const keep = (current: string, preferred: string[], pattern: RegExp) => (list.includes(current) ? current : (pickModel(list, preferred, pattern) ?? current));
-      await save({
-        apiKey: key.trim(),
-        baseUrl,
-        model: keep(cfg.model, ['openai/gpt-oss-120b', 'qwen/qwen3.8-27b', 'openai/gpt-oss-20b'], /gpt|qwen|llama|kimi|mistral|gemma/i),
-        fastModel: keep(cfg.fastModel, ['openai/gpt-oss-20b', 'openai/gpt-oss-120b', 'qwen/qwen3.8-27b'], /gpt|qwen|llama|gemma/i),
-        sttModel: keep(cfg.sttModel, ['whisper-large-v3-turbo', 'whisper-large-v3'], /whisper/i),
-      });
-      toast.success('Bağlantı başarılı', { description: `${list.length} model kullanılabilir.` });
-      if (!cfg.consentAt) setConsentOpen(true);
-    } catch (e) {
-      toast.error('Bağlantı kurulamadı', { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  const chatModels = models.filter((m) => !/whisper|tts|guard|orpheus|playai/i.test(m));
-  const ai = useAi();
-  const ready = ai.enabled;
-  const isCloud = cfg.provider === 'cloud';
-  const cloudSession = useCloud((s) => s.session);
-  const cloudUrl = f.settings.cloud?.url || envCloudConfig()?.url || '';
-
-  async function testCloud() {
-    if (!cloudSession || !cloudUrl) {
-      toast('Önce “Bulut senkronu” bölümünden giriş yapın');
-      return;
-    }
-    setTesting(true);
-    try {
-      const list = await listModels({ apiKey: cloudSession.access_token, baseUrl: `${cloudUrl}/functions/v1/ai-proxy` });
-      setModels(list);
-      toast.success('Bulut yapay zekâsı çalışıyor', { description: `${list.length} model kullanılabilir.` });
-      if (!cfg.consentAt) setConsentOpen(true);
-      else await save({ enabled: true });
-    } catch (e) {
-      toast.error('Bulut fonksiyonuna ulaşılamadı', { description: e instanceof Error ? e.message : String(e) });
-    } finally {
-      setTesting(false);
-    }
-  }
-
-  return (
-    <Section
-      id="yapay-zeka"
-      index={1}
-      title="Yapay zekâ"
-      description={
-        <span className="flex flex-wrap items-center gap-2">
-          {ready ? <Badge tone="in" icon={<CheckCircle size={12} />}>Açık · {cfg.model.replace('openai/', '')}</Badge> : <Badge tone="muted">Kapalı</Badge>}
-          Rakamlar her zaman cihazınızda hesaplanır; yapay zekâ yalnızca yorumlar ve dili yapıya çevirir.
-        </span>
-      }
-    >
-      <div className="mb-4 flex flex-wrap items-center gap-3">
-        <span className="flex items-center gap-2">
-          <span className="text-xs font-medium text-muted" aria-hidden>
-            Anahtar
-          </span>
-          <Segmented
-            label="Anahtar nerede duruyor"
-            value={isCloud ? 'cloud' : 'device'}
-            onChange={(v) => void save({ provider: v === 'cloud' ? 'cloud' : baseUrl.includes('groq.com') ? 'groq' : 'openai-compatible' })}
-            options={[
-              { value: 'device', label: 'Bu cihazda' },
-              { value: 'cloud', label: 'Bulut sunucusunda' },
-            ]}
-          />
-        </span>
-        <span className="text-2xs text-muted">{isCloud ? 'Ekip ve yayındaki site için önerilir: anahtar tarayıcıya hiç inmez.' : 'En basit yol: anahtarı yapıştırın, bu cihazda çalışır.'}</span>
-      </div>
-
-      {isCloud ? (
-        <div className="space-y-4">
-          <ol className="space-y-3 rounded-[16px] bg-sunken p-4 text-sm text-ink-2">
-            <li>
-              <strong>1.</strong> Bulut senkronu bölümünden Supabase’e bağlanıp giriş yapın{cloudSession ? <Badge tone="in" className="ml-2">Tamam</Badge> : null}.
-            </li>
-            <li className="space-y-2">
-              <span className="block">
-                <strong>2.</strong> Supabase panelinde <strong>Edge Functions › Deploy a new function › Via Editor</strong> açın, adını <code className="rounded bg-surface px-1">ai-proxy</code> yapın, kodu yapıştırıp <strong>Deploy</strong> deyin.
-              </span>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon={<Copy size={14} />}
-                onClick={async () => {
-                  await navigator.clipboard.writeText(aiProxySource);
-                  toast.success('Fonksiyon kodu kopyalandı');
-                }}
-              >
-                Fonksiyon kodunu kopyala
-              </Button>
-            </li>
-            <li>
-              <strong>3.</strong> <strong>Edge Functions › Secrets</strong> sayfasında <code className="rounded bg-surface px-1">GROQ_API_KEY</code> adıyla Groq anahtarınızı ekleyin (
-              <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="text-cobalt-ink underline">
-                anahtar al
-              </a>
-              ).
-            </li>
-          </ol>
-          <div className="flex justify-end">
-            <Button variant="primary" loading={testing} onClick={testCloud} disabled={!cloudSession}>
-              Bulut bağlantısını test et
-            </Button>
-          </div>
-        </div>
-      ) : (
-      <>
-      <div className="rounded-[16px] bg-sunken p-4 text-sm text-ink-2">
-        <div className="font-medium text-ink">Ücretsiz Groq anahtarı nasıl alınır?</div>
-        <ol className="mt-2 list-decimal space-y-1 pl-5 text-xs text-muted">
-          <li>
-            <a href="https://console.groq.com/keys" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cobalt-ink underline">
-              console.groq.com/keys <ArrowSquareOut size={12} />
-            </a>{' '}
-            adresine gidin, Google hesabınızla ücretsiz giriş yapın (kredi kartı gerekmez).
-          </li>
-          <li>“Create API Key” deyin, bir ad verin ve oluşan anahtarı kopyalayın (gsk_ ile başlar).</li>
-          <li>Aşağıya yapıştırıp “Bağlantıyı test et” deyin.</li>
-        </ol>
-      </div>
-
-      <div className="mt-4 grid gap-4 sm:grid-cols-[1fr_auto] sm:items-end">
-        <Field label="Groq API anahtarı" hint="Yalnızca bu cihazda saklanır; yedek dosyalarına eklenmez.">
-          {(p) => <TextInput {...p} type="password" autoComplete="off" value={key} onChange={(e) => setKey(e.target.value)} placeholder="gsk_…" className="num" />}
-        </Field>
-        <Button variant="primary" loading={testing} onClick={test} disabled={!key.trim()}>
-          Bağlantıyı test et
-        </Button>
-      </div>
-      </>
-      )}
-
-      {(cfg.apiKey || isCloud) && (
-        <div className="mt-5 space-y-4">
-          {cfg.consentAt === 'env' && <p className="text-2xs text-muted">Anahtar .env dosyasından (VITE_GROQ_API_KEY) okunuyor.</p>}
-          <UsageMeter />
-          <label className="flex items-center justify-between gap-3 rounded-[14px] border border-line px-4 py-3 text-sm">
-            <span>
-              Yapay zekâ özelliklerini kullan
-              <span className="block text-2xs text-muted">Asistan, doğal dil ve sesle kayıt, ekstre sınıflandırma, mesaj ve rapor yorumları.</span>
-            </span>
-            <Toggle
-              checked={cfg.enabled}
-              onCheckedChange={(v) => {
-                if (v && !cfg.consentAt) setConsentOpen(true);
-                else void save({ enabled: v });
-              }}
-              label="Yapay zekâ"
-            />
-          </label>
-          <label className="flex items-center justify-between gap-3 rounded-[14px] border border-line px-4 py-3 text-sm">
-            <span>
-              Cari isimlerini maskele
-              <span className="block text-2xs text-muted">Groq’a “Yıldız Gıda” yerine “Cari-3” gönderilir; yanıt cihazınızda geri çözülür.</span>
-            </span>
-            <Toggle checked={cfg.maskNames} onCheckedChange={(v) => void save({ maskNames: v })} label="İsimleri maskele" />
-          </label>
-          <div className="grid gap-4 sm:grid-cols-2">
-            <Field label="Asistan modeli">
-              {(p) => (
-                <Select {...p} value={cfg.model} onChange={(e) => void save({ model: e.target.value })}>
-                  {[cfg.model, ...chatModels.filter((m) => m !== cfg.model)].map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-            <Field label="Hızlı model (ayrıştırma, sınıflandırma)">
-              {(p) => (
-                <Select {...p} value={cfg.fastModel} onChange={(e) => void save({ fastModel: e.target.value })}>
-                  {[cfg.fastModel, ...chatModels.filter((m) => m !== cfg.fastModel)].map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </Select>
-              )}
-            </Field>
-          </div>
-          <details className="rounded-[14px] border border-line px-4 py-3 text-sm">
-            <summary className="cursor-pointer text-ink-2">Gelişmiş: farklı bir OpenAI uyumlu servis (ör. yerel Ollama)</summary>
-            <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-              <Field label="Servis adresi" hint="Groq: https://api.groq.com/openai/v1 · Ollama: http://localhost:11434/v1">
-                {(p) => <TextInput {...p} value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} />}
-              </Field>
-              <Button variant="secondary" onClick={() => void save({ baseUrl, provider: baseUrl.includes('groq.com') ? 'groq' : 'openai-compatible' }).then(() => toast.success('Servis adresi kaydedildi'))}>
-                Kaydet
-              </Button>
-            </div>
-            {baseUrl !== GROQ_BASE && (
-              <button type="button" className="mt-2 text-2xs text-cobalt-ink underline" onClick={() => setBaseUrl(GROQ_BASE)}>
-                Groq’a dön
-              </button>
-            )}
-          </details>
-        </div>
-      )}
-
-      <details className="mt-5 rounded-[14px] border border-line px-4 py-3 text-sm">
-        <summary className="cursor-pointer text-ink-2">İsteğe bağlı: fiş ve fatura fotoğrafı okuma (Google Gemini)</summary>
-        <p className="mt-2 text-xs text-muted">
-          Gemini’nin ücretsiz katmanında Google, gönderilen içeriği model eğitiminde kullanabilir. Bu yüzden yalnızca okuttuğunuz fiş fotoğrafı gönderilir; defter verileriniz gönderilmez. Anahtarı{' '}
-          <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer" className="text-cobalt-ink underline">
-            aistudio.google.com/apikey
-          </a>{' '}
-          adresinden ücretsiz alabilirsiniz.
-        </p>
-        <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_auto] sm:items-end">
-          <Field label="Gemini API anahtarı">{(p) => <TextInput {...p} type="password" value={gKey} onChange={(e) => setGKey(e.target.value)} placeholder="AIza…" />}</Field>
-          <Button
-            variant="secondary"
-            disabled={!gKey.trim()}
-            onClick={async () => {
-              try {
-                const list = await listGeminiModels(gKey.trim());
-                setGModels(list);
-                await save({ gemini: { apiKey: gKey.trim(), model: list[0] ?? 'gemini-flash-latest', consentAt: new Date().toISOString() } });
-                toast.success('Gemini bağlandı', { description: list[0] });
-              } catch (e) {
-                toast.error('Gemini doğrulanamadı', { description: e instanceof Error ? e.message : '' });
-              }
-            }}
-          >
-            Onayla ve bağla
-          </Button>
-        </div>
-        {cfg.gemini && (
-          <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
-            <Badge tone="in">Bağlı</Badge>
-            <Select aria-label="Gemini modeli" value={cfg.gemini.model} onChange={(e) => void save({ gemini: { ...cfg.gemini!, model: e.target.value } })} className="h-8 text-xs">
-              {[cfg.gemini.model, ...gModels.filter((m) => m !== cfg.gemini!.model)].map((m) => (
-                <option key={m}>{m}</option>
-              ))}
-            </Select>
-            <Button size="sm" variant="ghost" onClick={() => void save({ gemini: undefined }).then(() => toast('Gemini bağlantısı kaldırıldı'))}>
-              Kaldır
-            </Button>
-          </div>
-        )}
-      </details>
-
-      <Modal
-        open={consentOpen}
-        onOpenChange={setConsentOpen}
-        title="Yapay zekâyı açmadan önce"
-        footer={
-          <>
-            <Button variant="ghost" onClick={() => setConsentOpen(false)}>
-              Vazgeç
-            </Button>
-            <Button
-              variant="primary"
-              onClick={async () => {
-                await save({ enabled: true, consentAt: new Date().toISOString() });
-                setConsentOpen(false);
-                toast.success('Yapay zekâ açıldı');
-              }}
-            >
-              Anladım, aç
-            </Button>
-          </>
-        }
-      >
-        <ul className="space-y-2 text-sm text-ink-2">
-          <li>• Sorularınız ve yanıt için gereken <strong>özet veriler</strong> (ör. “açık alacak ₺6,2 milyon”, ilgili cari adı) Groq’a gönderilir.</li>
-          <li>• Groq, sözleşmesi gereği bu verileri model eğitiminde kullanmaz ve varsayılan olarak saklamaz.</li>
-          <li>• Ham defteriniz, IBAN’larınız ve dosyalarınız gönderilmez; tüm hesaplamalar cihazınızda yapılır.</li>
-          <li>• İsterseniz cari isimlerini maskeleyebilirsiniz.</li>
-        </ul>
-      </Modal>
-    </Section>
-  );
-}
-
-/** Groq limit başlıklarından: bugün kalan istek. */
-function UsageMeter() {
-  const [u, setU] = useState<AiUsage | null>(getAiUsage);
-  useEffect(() => onAiUsage(setU), []);
-  if (!u || u.limitRequests == null || u.remainingRequests == null) {
-    return <p className="text-2xs text-muted">Ücretsiz katman: günde yaklaşık 1.000 istek. İlk kullanımdan sonra kalan hakkınız burada görünür.</p>;
-  }
-  const ratio = u.remainingRequests / u.limitRequests;
-  return (
-    <div className="rounded-[14px] border border-line px-4 py-3 text-sm">
-      <div className="flex items-center justify-between text-xs">
-        <span className="text-muted">Bugün kalan istek</span>
-        <span className="num font-medium">
-          {u.remainingRequests.toLocaleString('tr-TR')} / {u.limitRequests.toLocaleString('tr-TR')}
-        </span>
-      </div>
-      <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-sunken">
-        <div className={cn('h-full rounded-full', ratio < 0.15 ? 'bg-outflow' : 'bg-cobalt')} style={{ width: `${Math.max(2, ratio * 100)}%` }} />
-      </div>
-    </div>
-  );
-}
 
 // ---------------------------------------------------------------------------
 
@@ -726,6 +398,10 @@ function DataSection() {
   const [confirm, setConfirm] = useState<null | 'wipe' | 'demo'>(null);
   const [pending, setPending] = useState<Backup | null>(null);
   const days = f.settings.lastBackupAt ? diffDays(f.today, toISODate(new Date(f.settings.lastBackupAt))) : null;
+  const [persistent, setPersistent] = useState<boolean | null>(null);
+  useEffect(() => {
+    void isStoragePersistent().then(setPersistent);
+  }, []);
   return (
     <Section
       id="veri"
@@ -739,6 +415,18 @@ function DataSection() {
         )
       }
     >
+      {persistent !== null && (
+        <p className={cn('mb-3 flex items-start gap-2 rounded-[12px] px-3 py-2 text-xs', persistent ? 'bg-inflow-soft text-inflow-text' : 'bg-saffron-soft/60 text-saffron-text')}>
+          {persistent
+            ? 'Bu tarayıcı verilerinizi kalıcı saklıyor: yalnızca siz silerseniz gider.'
+            : 'Tarayıcı, yer azalırsa site verilerini silebilir. Düzenli yedek alın ya da Mizan’ı ana ekrana / uygulama olarak yükleyin.'}
+          {!persistent && (
+            <button type="button" className="ml-auto shrink-0 underline" onClick={() => void ensurePersistentStorage().then(setPersistent)}>
+              Kalıcı saklamayı iste
+            </button>
+          )}
+        </p>
+      )}
       <div className="grid gap-3 sm:grid-cols-2">
         <DataCard
           title="Yedek al"

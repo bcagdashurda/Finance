@@ -33,6 +33,8 @@ import { fetchLatestRates } from '@/data/rates';
 import { CloudBridge } from '@/cloud/CloudBridge';
 import { CloudStatusBadge } from '@/cloud/ui';
 import { DemoBanner } from './DemoBanner';
+import { cloudAvailable } from '@/features/ayarlar/CloudSection';
+import { ensurePersistentStorage } from '@/data/persist';
 
 function RailLink({ item, collapsed }: { item: NavItem; collapsed: boolean }) {
   const Icon = item.icon;
@@ -157,7 +159,8 @@ function Rail() {
         </button>
         <RailLink item={SETTINGS_ITEM} collapsed={collapsed} />
         <div className={cn('flex items-center gap-1 pt-2', collapsed ? 'flex-col' : 'justify-between px-1')}>
-          <NavLink to="/ayarlar#bulut" viewTransition aria-label="Bulut senkronu durumu">
+          {/* Bulut kurulmamışsa eşitleme bölümü yok: rozet yedek bölümüne götürür */}
+          <NavLink to={cloudAvailable(f.settings.cloud) ? '/ayarlar#bulut' : '/ayarlar#veri'} viewTransition aria-label="Veri ve eşitleme durumu">
             <CloudStatusBadge linked={Boolean(f.settings.cloud?.linked.includes(f.workspace.id)) && !f.settings.isDemo} collapsed={collapsed} />
           </NavLink>
           <div className={cn('flex items-center', collapsed && 'flex-col')}>
@@ -318,6 +321,10 @@ export function AppShell() {
     ratesCheckedFor = key;
     fetchLatestRates().catch(() => undefined);
   }, [f.ratesDate, f.today, f.workspace.id]);
+  // Gerçek işletme verisi varken tarayıcıdan kalıcı depolama iste (defter ve anahtar silinmesin)
+  useEffect(() => {
+    if (!f.settings.isDemo) void ensurePersistentStorage();
+  }, [f.settings.isDemo]);
   return (
     <div className="grain relative flex min-h-dvh">
       <a href="#main" className="sr-only focus:not-sr-only focus:fixed focus:left-4 focus:top-4 focus:z-50 focus:rounded-lg focus:bg-surface focus:px-4 focus:py-2">

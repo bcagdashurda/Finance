@@ -97,7 +97,7 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
     const history = turns;
     setTurns((t) => [...t, { role: 'user', content: q }]);
     if (!ai.enabled) {
-      setTurns((t) => [...t, { role: 'assistant', content: offlineAnswer ?? 'Serbest soruları yanıtlayabilmem için Ayarlar’dan ücretsiz Groq anahtarı eklemeniz gerekiyor. Hazır sorular cihazınızda yanıtlanır.', tools: offlineAnswer ? ['Cihazda hesaplandı'] : [] }]);
+      setTurns((t) => [...t, { role: 'assistant', content: offlineAnswer ?? 'Serbest soruları yanıtlayabilmem için Ayarlar › Yapay zekâ’dan ücretsiz bir Groq ya da Gemini anahtarı bağlamanız gerekiyor. Hazır sorular cihazınızda yanıtlanır.', tools: offlineAnswer ? ['Cihazda hesaplandı'] : [] }]);
       return;
     }
     setBusy(true);
@@ -115,7 +115,7 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
 
   async function toggleMic() {
     if (!ai.enabled) {
-      toast('Sesle soru için Ayarlar’dan Groq anahtarı ekleyin');
+      toast('Sesle soru için Ayarlar › Yapay zekâ’dan ücretsiz bir anahtar bağlayın');
       return;
     }
     try {

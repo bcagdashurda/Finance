@@ -1,8 +1,8 @@
 /**
- * groq: anahtar bu cihazda · openai-compatible: özel uç nokta (ör. Ollama) ·
- * cloud: Supabase Edge Function (ai-proxy) — anahtar sunucuda, oturum jetonuyla çağrılır.
+ * groq / gemini: kullanıcının ücretsiz anahtarı bu cihazda (ikisi de OpenAI uyumlu uç noktayla, tarayıcıdan) ·
+ * openai-compatible: özel uç nokta (ör. Ollama) · cloud: Supabase Edge Function (ai-proxy) — anahtar sunucuda.
  */
-export type AiProvider = 'groq' | 'openai-compatible' | 'cloud';
+export type AiProvider = 'groq' | 'gemini' | 'openai-compatible' | 'cloud';
 
 export interface AiConfig {
   enabled: boolean;
@@ -24,17 +24,37 @@ export interface AiConfig {
 }
 
 export const GROQ_BASE = 'https://api.groq.com/openai/v1';
+/** Gemini'nin OpenAI uyumlu uç noktası (sohbet, araç çağrısı, yapılandırılmış JSON) */
+export const GEMINI_BASE = 'https://generativelanguage.googleapis.com/v1beta/openai';
+/** Gemini'nin kendi API'si (ses ve görüntü girdisi) */
+export const GEMINI_NATIVE = 'https://generativelanguage.googleapis.com/v1beta';
+
+type Preset = Pick<AiConfig, 'baseUrl' | 'model' | 'fastModel' | 'sttModel'>;
+export const PRESETS: Record<'groq' | 'gemini', Preset> = {
+  groq: { baseUrl: GROQ_BASE, model: 'openai/gpt-oss-120b', fastModel: 'openai/gpt-oss-20b', sttModel: 'whisper-large-v3-turbo' },
+  gemini: { baseUrl: GEMINI_BASE, model: 'gemini-2.5-flash', fastModel: 'gemini-2.5-flash-lite', sttModel: 'gemini-2.5-flash' },
+};
 
 export const DEFAULT_AI: AiConfig = {
   enabled: false,
   provider: 'groq',
   apiKey: '',
-  baseUrl: GROQ_BASE,
-  model: 'openai/gpt-oss-120b',
-  fastModel: 'openai/gpt-oss-20b',
-  sttModel: 'whisper-large-v3-turbo',
+  ...PRESETS.groq,
   maskNames: false,
 };
+
+/** Sağlayıcı değişince uç nokta ve modeller birlikte değişir (Groq modeli Gemini'ye gönderilmesin). */
+export function withProvider(c: AiConfig, provider: 'groq' | 'gemini'): AiConfig {
+  return { ...c, provider, ...PRESETS[provider] };
+}
+
+/** Yapıştırılan anahtardan sağlayıcıyı tanır: Groq "gsk_", Google "AIza" ile başlar. */
+export function detectProvider(key: string): 'groq' | 'gemini' | null {
+  const k = key.trim();
+  if (k.startsWith('gsk_')) return 'groq';
+  if (k.startsWith('AIza')) return 'gemini';
+  return null;
+}
 
 export function isAiReady(c: AiConfig | undefined | null): c is AiConfig {
   return Boolean(c && c.enabled && c.apiKey && c.consentAt);

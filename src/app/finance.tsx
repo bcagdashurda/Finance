@@ -11,19 +11,24 @@ import { overallBehavior, paymentBehavior, type PaymentBehavior } from '@/domain
 import { estimateVat, type VatPeriod } from '@/domain/vat';
 import { buildForecast, type ForecastInput, type ForecastResult } from '@/domain/forecast';
 import { computeRunRate, type RunRate } from '@/domain/runrate';
-import { DEFAULT_AI, type AiConfig } from '@/ai/config';
+import { DEFAULT_AI, withProvider, type AiConfig } from '@/ai/config';
 import type { CloudConfig } from '@/cloud/store';
 
 /**
- * Yapay zekâ ayarı: Ayarlar'dan girilen anahtar önceliklidir. Anahtar boşsa ve
- * .env dosyasında VITE_GROQ_API_KEY varsa o kullanılır (dosyaya yazmak açık onay sayılır).
+ * Yapay zekâ ayarı: Ayarlar'dan girilen anahtar her zaman önceliklidir. Boşsa kurulumu yapan kişinin
+ * dosyası (.env / Vercel) sırayla: VITE_AI_SERVER=1 (anahtar sunucuda, ai-proxy) → VITE_GROQ_API_KEY →
+ * VITE_GEMINI_API_KEY. Dosyaya yazmak açık onay sayılır.
  */
-function resolveAiConfig(stored: Partial<AiConfig> | undefined): AiConfig {
+export function resolveAiConfig(stored: Partial<AiConfig> | undefined): AiConfig {
   const cfg: AiConfig = { ...DEFAULT_AI, ...(stored ?? {}) };
-  const envKey = (import.meta.env.VITE_GROQ_API_KEY as string | undefined)?.trim();
-  if (!cfg.apiKey && envKey) {
-    return { ...cfg, apiKey: envKey, enabled: stored?.enabled ?? true, consentAt: cfg.consentAt ?? 'env' };
-  }
+  if (cfg.apiKey || cfg.provider === 'openai-compatible') return cfg;
+  const env = import.meta.env;
+  const fromEnv = { enabled: stored?.enabled ?? true, consentAt: cfg.consentAt ?? 'env' };
+  if (env.VITE_AI_SERVER === '1') return { ...cfg, ...fromEnv, provider: 'cloud' };
+  const groq = (env.VITE_GROQ_API_KEY as string | undefined)?.trim();
+  if (groq) return { ...withProvider(cfg, 'groq'), ...fromEnv, apiKey: groq };
+  const gemini = (env.VITE_GEMINI_API_KEY as string | undefined)?.trim();
+  if (gemini) return { ...withProvider(cfg, 'gemini'), ...fromEnv, apiKey: gemini, maskNames: stored?.maskNames ?? true };
   return cfg;
 }
 import type { CurrencyCode, Money } from '@/domain/money';

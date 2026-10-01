@@ -2,6 +2,10 @@ import { useEffect } from 'react';
 import { useFinance } from '@/app/finance';
 import { db, WORKSPACE_TABLES } from '@/data/db';
 import { ensureClient, envCloudConfig, isApplyingRemote, syncNow, useCloud } from './store';
+import { reconcileAiOnSignIn, supabaseUserSettings } from './userSettings';
+import { setSetting } from '@/data/repo';
+import { SETTINGS_KEYS } from '@/data/keys';
+import { DEFAULT_AI } from '@/ai/config';
 
 const INTERVAL_MS = 60_000;
 const DEBOUNCE_MS = 4_000;
@@ -36,6 +40,24 @@ export function CloudBridge() {
     const source = cfg?.url && cfg.anonKey ? cfg : envCloudConfig();
     ensureClient(source ?? null);
   }, [cfg?.url, cfg?.anonKey]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Girişte yapay zekâ bağlantısını hesapla eşitle: yeni tarayıcıda anahtar yeniden istenmez
+  const ai = f.settings.ai;
+  const userId = session?.user.id;
+  useEffect(() => {
+    const client = useCloud.getState().client;
+    if (!client || !userId) return;
+    const remote = supabaseUserSettings(client, userId);
+    void remote
+      .getAi()
+      .then(async (account) => {
+        const r = reconcileAiOnSignIn(ai, account);
+        if (r.action === 'restore') await setSetting(SETTINGS_KEYS.ai, { ...DEFAULT_AI, ...r.ai });
+        else if (r.action === 'upload') await remote.putAi(r.ai);
+      })
+      .catch(() => undefined); // tablo henüz yoksa (eski şema) sessizce geç
+    // Yalnızca giriş anında: sonraki değişiklikleri saveAiConfig hesaba yazar
+  }, [userId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     if (!session || !linked) return;

@@ -138,7 +138,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 
   async function toggleMic() {
     if (!ai.enabled) {
-      toast('Sesle kayıt için Ayarlar’dan ücretsiz Groq anahtarı ekleyin');
+      toast('Sesle kayıt için Ayarlar › Yapay zekâ’dan ücretsiz bir anahtar bağlayın');
       return;
     }
     try {

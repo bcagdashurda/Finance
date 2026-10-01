@@ -3,10 +3,12 @@
 Mizan hiçbir hesap açmadan çalışır: veriler bu bilgisayarın tarayıcısında durur.
 Aşağıdaki iki adım **isteğe bağlıdır** ve yalnızca şu durumlarda gerekir:
 
-| İstediğiniz | Gereken | Süre |
-|---|---|---|
-| Yazarak/konuşarak kayıt, asistan, ekstre sınıflandırma | **Groq anahtarı** (ücretsiz) | 3 dk |
-| Telefon + bilgisayar, ekip arkadaşı, internette yayın | **Supabase projesi** (ücretsiz) | 10 dk |
+| İstediğiniz | Gereken | Kim yapar | Süre |
+|---|---|---|---|
+| Yazarak/konuşarak kayıt, asistan, ekstre sınıflandırma, fiş okuma | **Groq ya da Gemini anahtarı** (ücretsiz) | Kullanıcı, uygulamanın içinden | 3 dk |
+| Telefon + bilgisayar, ekip arkadaşı, internette yayın | **Supabase projesi** (ücretsiz) | Kurulumu yapan kişi, bir kez | 10 dk |
+
+Kullanıcılar uygulamada hiçbir teknik ayar (sunucu adresi, Supabase) görmez; bulut bağlantısı kurulumu yapan kişinin `.env.local` / Vercel ayarından gelir.
 
 ---
 
@@ -18,16 +20,16 @@ Proje klasöründeki **`Mizan-Baslat.bat`** dosyasına çift tıklayın. İlk se
 
 ---
 
-## 1. Yapay zekâ (Groq) — yalnızca anahtarı yapıştırmak yeter
+## 1. Yapay zekâ — kullanıcı uygulamadan açar
 
-1. https://console.groq.com/keys adresine gidin, Google hesabınızla giriş yapın (kredi kartı istenmez).
-2. **Create API Key** → bir ad verin → oluşan anahtarı kopyalayın (`gsk_` ile başlar).
-3. Mizan'da **Ayarlar › Yapay zekâ** bölümünde anahtar **"Bu cihazda"** seçiliyken anahtarı yapıştırın.
-4. **Bağlantıyı test et** → çıkan pencerede **Anladım, aç**.
+Mizan'da **Ayarlar › Yapay zekâ**:
+1. **Servis seçin:** Groq (önerilen; çok hızlı, sesle kayıt) ya da Google Gemini (Google hesabıyla; fiş okumada güçlü).
+2. **"Nasıl alınır?"** düğmesi adım adım, çizimli bir rehber açar ve siteyi yeni sekmede açar (Groq: `console.groq.com/keys`, Gemini: `aistudio.google.com/apikey`). Ücretsizdir, kredi kartı istenmez.
+3. Anahtarı yapıştırın (rehberdeki **"Panodan yapıştır"** ya da Ctrl+V) → **Bağlan** → **Anladım, aç**.
 
-Bu kadar. Anahtar yalnızca bu tarayıcıda saklanır ve yedek dosyalarına eklenmez.
+Yanlış servisin anahtarı yapıştırılırsa uygulama bunu tanır (`gsk_` Groq, `AIza` Gemini) ve seçimi kendisi düzeltir. Anahtar yalnızca o tarayıcıda saklanır ve yedek dosyalarına eklenmez. Gemini seçildiğinde müşteri adları varsayılan olarak takma adla gönderilir (ücretsiz Gemini'de Google içerikleri ürün geliştirmede kullanabilir).
 
-*Alternatif:* proje klasöründeki `.env.example` dosyasını `.env.local` adıyla kopyalayıp `VITE_GROQ_API_KEY=gsk_…` satırını doldurabilirsiniz. **Bunu yalnızca kendi bilgisayarınızda yapın** — internette yayınlanan sürümde bu yöntem anahtarı herkese açar (aşağıda 3. bölüm).
+*Kurulumu yapan kişi için alternatif:* `.env.local` dosyasına `VITE_GROQ_API_KEY=gsk_…` ya da `VITE_GEMINI_API_KEY=AIza…` yazılırsa anahtar hazır gelir. **Yalnızca kendi bilgisayarınızda** — internette yayınlanan sürümde bu yöntem anahtarı herkese açar (3.1'e bakın).
 
 ---
 
@@ -47,16 +49,16 @@ Hesap oluştururken doğrulama e-postası gelir; bağlantının doğru adrese d�
 
 > Ücretsiz Supabase'in yerleşik e-postası saatte birkaç iletiyle sınırlıdır. Ekipte çok kişi aynı anda kaydolacaksa **Authentication › Emails › SMTP Settings** ile kendi e-posta hizmetinizi bağlayın.
 
-### 2.3 Mizan'a bağlama
-1. Supabase'de **Project Settings › API** (yeni panelde **Data API** ve **API Keys**) sayfasından:
-   - **Project URL** (`https://…supabase.co`)
-   - **anon public** (ya da **publishable**) anahtarını kopyalayın.
-2. Mizan'da **Ayarlar › Bulut senkronu** → iki değeri yapıştırın.
-3. **Hesap oluştur** → e-postadaki doğrulama bağlantısına tıklayın → **Giriş yap**.
-4. **Buluta yükle ve eşitlemeyi başlat**. Sonraki değişiklikler her cihazda kendiliğinden eşitlenir.
+### 2.3 Mizan'a bağlama (kurulumu yapan kişi, bir kez)
+1. Supabase'de **Project Settings › API** (yeni panelde **Data API** ve **API Keys**) sayfasından **Project URL** (`https://…supabase.co`) ve **anon public** (ya da **publishable**) anahtarını kopyalayın.
+2. Proje klasöründeki `.env.example` dosyasını **`.env.local`** adıyla kopyalayın; `VITE_SUPABASE_URL` ve `VITE_SUPABASE_ANON_KEY` satırlarını doldurun. (İnternette yayında aynı iki değer Vercel'in Environment Variables bölümüne girilir — 3.2.)
+3. Mizan'ı yeniden başlatın. Ayarlar'da **"Hesap ve eşitleme"** bölümü belirir. Bu değerler girilmezse bölüm hiç görünmez; uygulama yalnızca cihazda çalışır.
 
-Diğer cihazda: aynı Project URL/anahtarla giriş yapın → **Buluttaki işletmelerim** listesinden işletmeyi indirin.
-Ekip arkadaşı eklemek: arkadaşınız önce Mizan'da hesap oluşturur, sonra siz **Bulut senkronu** bölümünden e-postasını **Düzenleyici** ya da **Görüntüleyici** olarak eklersiniz.
+Kullanıcının yaptığı (teknik adım yok): **Ayarlar › Hesap ve eşitleme › Hesap oluştur** → e-postadaki doğrulama bağlantısı → **Giriş yap** → **Buluta yükle ve eşitlemeyi başlat**.
+Diğer cihazda: karşılama ekranındaki **"Başka cihazda kullanıyorum: hesabıma giriş yap"** → işletmeyi indir.
+Ekip arkadaşı: önce Mizan'da hesap oluşturur; sonra işletme sahibi **Hesap ve eşitleme** bölümünden e-postasını **Düzenleyici** ya da **Görüntüleyici** olarak ekler.
+
+Giriş yapan kullanıcının yapay zekâ anahtarı hesabına da kaydedilir (`user_settings`; yalnızca kendisi okuyabilir): başka bir tarayıcıda giriş yaptığında anahtarı yeniden girmesi gerekmez. Şemayı bu özellikten önce kurduysanız `schema.sql`'i bir kez daha çalıştırmanız yeterli.
 
 > **anon/publishable anahtar gizli değildir**; tarayıcıda görünmesi için tasarlanmıştır. Verilerin güvenliğini `schema.sql` içindeki satır düzeyi politikalar sağlar: herkes yalnızca üyesi olduğu işletmeyi görür, görüntüleyici yazamaz.
 
@@ -64,20 +66,20 @@ Ekip arkadaşı eklemek: arkadaşınız önce Mizan'da hesap oluşturur, sonra s
 
 ## 3. İnternette yayınlamak (isteğe bağlı)
 
-### 3.1 Yapay zekâ anahtarını sunucuya taşıyın
-Yayındaki sitede Groq anahtarı tarayıcıya **inmemeli**:
+### 3.1 (İsteğe bağlı) Yapay zekâyı herkese siz sağlayın
+Kullanıcılar kendi ücretsiz anahtarlarını girebilir (1. bölüm). Bunun yerine yapay zekâyı **sizin anahtarınızla** herkese açmak isterseniz anahtar tarayıcıya **inmemeli**, sunucuda durmalı:
 1. Supabase'de **Edge Functions › Deploy a new function › Via Editor** → adı **`ai-proxy`**.
 2. `supabase/functions/ai-proxy/index.ts` dosyasının tamamını yapıştırın → **Deploy**.
-   (Aynı kod Mizan'da **Ayarlar › Yapay zekâ › Bulut sunucusunda** bölümünde kopyalanabilir hâlde de var.)
 3. **Edge Functions › Secrets › Add new secret:** `GROQ_API_KEY` = `gsk_…`
-4. Mizan'da **Ayarlar › Yapay zekâ** → **"Bulut sunucusunda"** seçin. Yalnızca giriş yapmış kullanıcılar kullanabilir.
+4. Ortam değişkenlerine `VITE_AI_SERVER=1` ekleyin. Giriş yapmış her kullanıcı yapay zekâyı sizin sunucunuz üzerinden kullanır; Ayarlar'da "İşletme sunucusu bağlı" görünür.
 
 ### 3.2 Vercel'e yükleme
 1. Kodu GitHub'a gönderin (`.env.local` gönderilmez; `.gitignore` bunu engeller).
 2. https://vercel.com → **Add New › Project** → depoyu seçin. Ayarlar `vercel.json`'dan otomatik gelir.
 3. **Environment Variables:**
    - `VITE_SUPABASE_URL` ve `VITE_SUPABASE_ANON_KEY` — ekleyin.
-   - `VITE_GROQ_API_KEY` — **eklemeyin** (anahtar herkese görünür olur; 3.1'deki yolu kullanın).
+   - `VITE_AI_SERVER=1` — yalnızca 3.1'i yaptıysanız.
+   - `VITE_GROQ_API_KEY` / `VITE_GEMINI_API_KEY` — **eklemeyin** (anahtar herkese görünür olur).
 4. **Deploy** → çıkan adresi Supabase'de 2.2'deki **Site URL** ve **Redirect URLs**'e ekleyin.
 
 Netlify kullanırsanız `public/_redirects` ve `public/_headers` dosyaları aynı ayarları sağlar.
@@ -96,6 +98,7 @@ Netlify kullanırsanız `public/_redirects` ve `public/_headers` dosyaları ayn�
 | Doğrulama bağlantısı "localhost'a bağlanılamadı" | 2.2'deki **Site URL** yanlış ya da Mizan çalışmıyor (`Mizan-Baslat.bat`). |
 | "Invalid API key" (bulut) | Project URL ile anahtar farklı projelerden; ikisini aynı projeden kopyalayın. |
 | Tablo bulunamadı / "relation does not exist" | `schema.sql` çalıştırılmamış ya da yarım kopyalanmış; tamamını yeniden **Run**. |
-| Yapay zekâ: "Mizan'da giriş yapmalısınız" | "Bulut sunucusunda" seçili ama bulutta oturum yok: Ayarlar › Bulut senkronu'ndan giriş yapın. |
+| Yapay zekâ: "Mizan'da giriş yapmalısınız" | `VITE_AI_SERVER=1` ama kullanıcı giriş yapmamış: Ayarlar › Hesap ve eşitleme'den giriş yapılmalı. |
+| "Anahtar geçersiz ya da yetkisiz" | Anahtar eksik/yanlış kopyalanmış ya da silinmiş; "Nasıl alınır?" rehberiyle yeni anahtar alın. |
 | Yapay zekâ: "GROQ_API_KEY tanımlı değil" | 3.1 adım 3 (Secret) eksik. |
 | "Ücretsiz kullanım limiti doldu" | Groq ücretsiz katmanının dakikalık sınırı; uygulama bir kez kendisi yeniden dener, olmazsa biraz bekleyin. |

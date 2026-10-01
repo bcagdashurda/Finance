@@ -231,4 +231,23 @@ Bulunan ve düzeltilen:
 
 Sorunsuz bulunanlar: kodda `dangerouslySetInnerHTML`/`eval` yok (React tüm metni kaçışlıyor); raporlama görünümleri `security_invoker` ile RLS'ye tabi; yetkili fonksiyonlar `search_path` sabit ve sahiplik denetimli; Groq anahtarı yayın kurulumunda sunucuda (Edge Function), yalnızca giriş yapmış kullanıcıya; yedekler anahtar ve PIN içermiyor; `.env.local` git'e gitmiyor.
 
-Bilinçli kabul edilen (belgelendi): PIN kilidi şifreleme değil gizlilik kilidi; yerel veriler tarayıcıda şifresiz (bulutta RLS ile korunur); ekip ekleme ekranı bir e-postanın kayıtlı olup olmadığını sahibine söyler; Edge Function'da kullanıcı başına hız sınırı yok (küçük ekipler için yeterli, büyürse eklenmeli).
+Bilinçli kabul edilen (belgelendi): kullanıcının yapay zekâ anahtarı hesaba bağlı saklanır (aşağıda); Supabase'de satır düzeyi güvenlikle yalnızca kullanıcının kendisi okur, sunucuda ayrıca şifrelenmez. PIN kilidi şifreleme değil gizlilik kilidi; yerel veriler tarayıcıda şifresiz (bulutta RLS ile korunur); ekip ekleme ekranı bir e-postanın kayıtlı olup olmadığını sahibine söyler; Edge Function'da kullanıcı başına hız sınırı yok (küçük ekipler için yeterli, büyürse eklenmeli).
+
+## Kullanıcı geri bildirimi: sade Ayarlar ve yapay zekâ (2026-10-01) — 🔧
+
+İstek: "Ayarlarda Groq API, Supabase gibi şeyleri insanlar anlamaz; Supabase kalksın. Groq ve Gemini panelden açılsın, 'Nasıl yapılır?' ile görselli anlatılsın. Bağlamanın faydası söylensin; anahtar bir kez girilsin, hep hatırlansın."
+
+Yapılan:
+- **Supabase kullanıcı ekranlarından kalktı:** bulut bağlantısı yalnızca kurulumu yapanın `.env`/Vercel ayarından gelir. Kurulmamışsa "Hesap ve eşitleme" bölümü, menü bağlantısı ve karşılama ekranındaki giriş hiç görünmez; kurulmuşsa kullanıcı yalnızca giriş yapar. Sayfa metninde "Supabase" geçmediği testle denetleniyor.
+- **Yapay zekâ bölümü baştan yazıldı:** önce "Bağlayınca neler yapabilirsiniz?" (6 somut örnek; yapay zekâsız da tam çalıştığı açıkça yazılı) → 1. servis seç (Groq önerilen / Google Gemini) → 2. **"Nasıl alınır?"** → 3. yapıştır ve bağlan. Bağlıyken aynı liste "Nasıl kullanılır?" olur ve her özellikte "Dene" düğmesi doğrudan oraya götürür (komut paleti ve asistan için canlı doğrulandı). Model seçimi ve özel servis "Gelişmiş" altında.
+- **"Nasıl alınır?" rehberi:** Groq 5, Gemini 4 adım; her adımda ne tıklanacağını gösteren çizim, siteyi yeni sekmede açan düğme, "Panodan yapıştır". Çizimler temsilidir (sitelerin gerçek ekranları hesap girişi gerektirdiği için alınamadı; gerçek ekran görüntüsü eklenmek istenirse yerleri hazır).
+- **Gemini tam destekli** (önceden yalnızca fiş okumada): sohbet, yazarak kayıt, sınıflandırma, ses (Gemini'nin kendi API'siyle) ve fiş okuma aynı anahtarla. Canlı ölçüm (anahtarsız): Gemini ve Groq uç noktaları tarayıcıdan çağrılabiliyor. Bulunan: Gemini geçersiz anahtara 401 değil **400 + dizi gövdesi** döndürüyordu, eski kod kullanıcıya İngilizce ham mesaj gösterirdi → Türkçe "Anahtar geçersiz" (gerçek sunuculara karşı doğrulandı). Gemini şemayı reddederse "yalnızca JSON" talimatıyla bir kez yeniden denenir.
+- **Anahtar tanıma:** `gsk_` Groq, `AIza` Gemini; yanlış servis seçiliyken yapıştırılırsa seçim kendiliğinden düzelir.
+- **Bir kez gir, hep hatırla:**
+  - Aynı tarayıcıda anahtar zaten saklanıyordu; buna ek olarak tarayıcıdan **kalıcı depolama** isteniyor (yer azalınca site verisi — defter dahil — silinmesin). Ayarlar › Veri ve yedek'te durumu görünüyor.
+  - Yayından sonra hesapla: anahtar kullanıcının hesabına da yazılır (`user_settings`, yalnızca kendisi okur); başka bir tarayıcıda giriş yapınca **yeniden istenmez**. Kaldırılan anahtar hesaptan da silinir (bir sonraki girişte geri gelmez). Kurulum dosyasından gelen anahtarlar hesaba asla yüklenmez. Giriş oturumu zaten kalıcı.
+  - İşletmenin kendisi sağlamak isterse: `VITE_AI_SERVER=1` ile anahtar sunucuda, kullanıcı hiçbir şey girmez.
+
+Testler: birim (Gemini istemcisi 9, hesap eşitleme 7, ortam ayarı 3) ve uçtan uca "yapay zekâ ayarı sade" (Supabase yok, rehber adımları ve bağlantıları, anahtardan servis tanıma) — Gemini anahtar tanıma bilerek bozulunca kırmızıya düştü. Gerçek yanıtlarla deneme (S15) bir Groq/Gemini anahtarı girildiğinde yapılacak.
+
+Ekran: `ai-fayda-1366.png`, `ai-kullanim-1366.png`, `ai-rehber-groq-*.png`, `ai-rehber-gemini-1.png`, `ai-bagli-*.png`, `ai-ayar-375.png`, `ai-rehber-375.png`

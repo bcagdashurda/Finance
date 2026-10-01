@@ -20,7 +20,7 @@ export function CloudStatusBadge({ linked, collapsed }: { linked: boolean; colla
   const { status, lastSyncAt, error } = useCloud();
   if (!linked || status === 'off') {
     return (
-      <Tip content="Tüm verileriniz yalnızca bu cihazda, tarayıcınızın veritabanında saklanır. Ayarlar › Bulut senkronu ile cihazlar arası eşitleyebilirsiniz.">
+      <Tip content="Tüm verileriniz yalnızca bu cihazda, tarayıcınızın veritabanında saklanır. Düzenli yedek alın: Ayarlar › Veri ve yedek.">
         <span className="inline-flex items-center gap-1.5 rounded-full px-2 py-1 text-2xs text-muted">
           <LockSimple size={13} weight="bold" className="text-inflow-text" />
           {!collapsed && 'Veriler bu cihazda'}

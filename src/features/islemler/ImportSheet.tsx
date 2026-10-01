@@ -326,7 +326,7 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
         <Badge tone="cobalt">{included.length} aktarılacak</Badge>
         {dupCount > 0 && <Badge tone="warn" icon={<Copy size={12} />}>{dupCount} olası mükerrer atlandı</Badge>}
         {unmatched > 0 ? <Badge tone="muted" icon={<WarningCircle size={12} />}>{unmatched} satır kategorisiz</Badge> : <Badge tone="in" icon={<CheckCircle size={12} />}>Hepsi eşleşti</Badge>}
-        <Tip content={ai.enabled ? 'Eşleşmeyen satırları Groq ile sınıflandırır; açıklamalar ve tutarlar gönderilir' : 'Ayarlar’dan yapay zekâyı açtığınızda kullanılabilir'}>
+        <Tip content={ai.enabled ? 'Eşleşmeyen satırları yapay zekâyla sınıflandırır; açıklamalar ve tutarlar gönderilir' : 'Ayarlar’dan yapay zekâyı açtığınızda kullanılabilir'}>
           <span className="ml-auto">
             <Button
               size="sm"

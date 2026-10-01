@@ -1,47 +1,51 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
-import { ArrowSquareOut, CheckCircle, Copy, SignOut, UserPlus, ArrowsClockwise, LinkBreak } from '@phosphor-icons/react';
-import schemaSql from '../../../supabase/schema.sql?raw';
+import { CheckCircle, SignOut, UserPlus, ArrowsClockwise, LinkBreak } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { Panel, PanelHeader } from '@/ui/Panel';
 import { Button } from '@/ui/Button';
 import { Field, Select, TextInput } from '@/ui/Field';
 import { Badge } from '@/ui/bits';
-import { db } from '@/data/db';
 import { CloudAuthForm, RemoteWorkspacePicker, Steps } from '@/cloud/ui';
-import { addTeamMember, envCloudConfig, saveCloudConfig, syncNow, testConnection, useCloud } from '@/cloud/store';
+import { addTeamMember, envCloudConfig, saveCloudConfig, syncNow, useCloud } from '@/cloud/store';
 
+/** Bulut kurulumu yapılmış mı? Bağlantı bilgisi yalnızca kurulumu yapan kişinin ayarından (.env) gelir. */
+export function cloudAvailable(saved?: { url?: string; anonKey?: string } | null): boolean {
+  return Boolean(envCloudConfig() || (saved?.url && saved.anonKey));
+}
+
+/**
+ * Hesap ve eşitleme. Kullanıcıya teknik bağlantı adımı (proje adresi, anahtar) gösterilmez:
+ * kurulum yapılmamışsa bölüm hiç görünmez (bkz. KURULUM.md).
+ */
 export function CloudSection({ index }: { index: number }) {
   const f = useFinance();
   const cloud = useCloud();
   const cfg = f.settings.cloud;
-  const env = envCloudConfig();
-  const configured = Boolean((cfg?.url && cfg.anonKey) || env);
   const linked = Boolean(cfg?.linked.includes(f.workspace.id));
-  const step = !configured ? 0 : !cloud.session ? 1 : 2;
+  if (!cloudAvailable(cfg)) return null;
+  const step = !cloud.session ? 0 : 1;
 
   return (
     <Panel reveal={index} id="bulut" className="scroll-mt-24">
       <PanelHeader
-        title="Bulut senkronu"
+        title="Hesap ve eşitleme"
         description={
           <span className="flex flex-wrap items-center gap-2">
-            {linked && cloud.session ? <Badge tone="in" icon={<CheckCircle size={12} />}>Bu işletme bulutla eşitleniyor</Badge> : <Badge tone="muted">Yalnızca bu cihaz</Badge>}
-            Verilerinizi telefon, ofis bilgisayarı ve ekip arkadaşlarınızla güvenle paylaşın (Supabase).
+            {linked && cloud.session ? <Badge tone="in" icon={<CheckCircle size={12} />}>Bu işletme eşitleniyor</Badge> : <Badge tone="muted">Yalnızca bu cihaz</Badge>}
+            Verilerinizi telefon, ofis bilgisayarı ve ekip arkadaşlarınızla güvenle paylaşın.
           </span>
         }
       />
-      <Steps steps={['Supabase projesi', 'Hesap', 'İşletmeyi bağla']} current={step} />
+      <Steps steps={['Hesap', 'İşletmeyi bağla']} current={step} />
 
-      {step === 0 && <ConfigStep />}
-      {step === 1 && (
+      {step === 0 && (
         <div className="space-y-3">
-          <p className="text-xs text-muted">Bulut hesabınızla giriş yapın. İlk kez kullanıyorsanız “Hesap oluştur” deyin.</p>
+          <p className="text-xs text-muted">Hesabınızla giriş yapın. İlk kez kullanıyorsanız “Hesap oluştur” deyin.</p>
           <CloudAuthForm />
-          <ResetConfigLink envManaged={Boolean(env && !cfg?.url)} />
         </div>
       )}
-      {step === 2 && (
+      {step === 1 && (
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-sunken px-4 py-3 text-sm">
             <span>
@@ -118,95 +122,6 @@ export function CloudSection({ index }: { index: number }) {
   );
 }
 
-function ConfigStep() {
-  const [url, setUrl] = useState('');
-  const [key, setKey] = useState('');
-  const [busy, setBusy] = useState(false);
-  return (
-    <div className="space-y-4">
-      <ol className="space-y-3 text-sm text-ink-2">
-        <li className="flex gap-3">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-[11px] font-semibold text-cobalt-ink">1</span>
-          <span>
-            <a href="https://supabase.com/dashboard/new" target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-cobalt-ink underline">
-              supabase.com <ArrowSquareOut size={12} />
-            </a>{' '}
-            üzerinde ücretsiz bir proje oluşturun. Bölge olarak <strong>Central EU (Frankfurt)</strong> seçin (KVKK için AB içinde kalır).
-          </span>
-        </li>
-        <li className="flex gap-3">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-[11px] font-semibold text-cobalt-ink">2</span>
-          <span className="space-y-2">
-            <span className="block">
-              Sol menüden <strong>SQL Editor › New query</strong> açın, şemayı yapıştırıp <strong>Run</strong> deyin.
-            </span>
-            <Button
-              size="sm"
-              variant="secondary"
-              icon={<Copy size={14} />}
-              onClick={async () => {
-                await navigator.clipboard.writeText(schemaSql);
-                toast.success('Şema panoya kopyalandı', { description: 'SQL Editor’a yapıştırıp Run deyin.' });
-              }}
-            >
-              Şemayı kopyala ({Math.round(schemaSql.length / 1024)} KB)
-            </Button>
-          </span>
-        </li>
-        <li className="flex gap-3">
-          <span className="mt-0.5 flex h-5 w-5 shrink-0 items-center justify-center rounded-full bg-cobalt-soft text-[11px] font-semibold text-cobalt-ink">3</span>
-          <span>
-            <strong>Project Settings › API</strong> sayfasından <strong>Project URL</strong> ve <strong>anon public</strong> anahtarını aşağıya yapıştırın.
-          </span>
-        </li>
-      </ol>
-      <div className="grid gap-3 sm:grid-cols-2">
-        <Field label="Project URL">{(p) => <TextInput {...p} value={url} onChange={(e) => setUrl(e.target.value)} placeholder="https://abcd1234.supabase.co" />}</Field>
-        <Field label="anon public anahtarı" hint="Herkese açık olacak şekilde tasarlanmıştır; güvenliği satır düzeyi politikalar sağlar.">
-          {(p) => <TextInput {...p} value={key} onChange={(e) => setKey(e.target.value)} placeholder="eyJhbGciOi…" className="num" />}
-        </Field>
-      </div>
-      <div className="flex justify-end">
-        <Button
-          variant="primary"
-          loading={busy}
-          disabled={!url.trim() || !key.trim()}
-          onClick={async () => {
-            setBusy(true);
-            try {
-              await testConnection(url, key);
-              await saveCloudConfig({ url: url.trim().replace(/\/$/, ''), anonKey: key.trim() });
-              toast.success('Supabase bağlandı', { description: 'Şimdi giriş yapın ya da hesap oluşturun.' });
-            } catch (e) {
-              toast.error('Bağlanılamadı', { description: e instanceof Error ? e.message : String(e) });
-            } finally {
-              setBusy(false);
-            }
-          }}
-        >
-          Bağlantıyı test et ve kaydet
-        </Button>
-      </div>
-    </div>
-  );
-}
-
-function ResetConfigLink({ envManaged }: { envManaged: boolean }) {
-  if (envManaged) return <p className="text-2xs text-muted">Bağlantı bilgileri .env dosyasından geliyor.</p>;
-  return (
-    <button
-      type="button"
-      className="text-2xs text-muted underline"
-      onClick={async () => {
-        const row = await db.settings.get('cloud');
-        await db.settings.put({ key: 'cloud', value: { ...(row?.value as object), url: '', anonKey: '' } });
-      }}
-    >
-      Farklı bir Supabase projesi kullan
-    </button>
-  );
-}
-
 function TeamInvite({ workspaceId }: { workspaceId: string }) {
   const [email, setEmail] = useState('');
   const [role, setRole] = useState<'editor' | 'viewer'>('editor');
@@ -216,7 +131,7 @@ function TeamInvite({ workspaceId }: { workspaceId: string }) {
       <div className="flex items-center gap-2 text-sm font-semibold">
         <UserPlus size={16} /> Ekip üyesi ekle
       </div>
-      <p className="mt-1 text-xs text-muted">Kişi önce Mizan’da (bu Supabase projesinde) hesap oluşturmalı. Muhasebeciniz için “Görüntüleyici” önerilir.</p>
+      <p className="mt-1 text-xs text-muted">Kişi önce Mizan’da hesap oluşturmalı. Muhasebeciniz için “Görüntüleyici” önerilir.</p>
       <div className="mt-3 grid gap-3 sm:grid-cols-[1fr_180px_auto] sm:items-end">
         <Field label="E-posta">{(p) => <TextInput {...p} type="email" value={email} onChange={(e) => setEmail(e.target.value)} />}</Field>
         <Field label="Yetki">

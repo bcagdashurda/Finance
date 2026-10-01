@@ -3,7 +3,7 @@
  * (Groq CORS'a izin verir). İstemci tarafı hız sınırı, 429 yeniden deneme ve önbellek içerir.
  */
 import { db } from '@/data/db';
-import type { AiConfig } from './config';
+import { GEMINI_NATIVE, type AiConfig } from './config';
 
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -109,34 +109,69 @@ export interface ChatResult {
   usage?: { prompt_tokens: number; completion_tokens: number; total_tokens: number };
 }
 
+/** Hata gövdesinden mesaj: OpenAI biçimi {error:{message}}, Gemini bazen dizi [{error:{message}}] döndürür. */
+function errorMessage(body: string): string {
+  try {
+    const j = JSON.parse(body);
+    return (Array.isArray(j) ? j[0] : j)?.error?.message ?? body;
+  } catch {
+    return body;
+  }
+}
+
 function friendly(status: number, body: string): AiError {
-  if (status === 401 || status === 403) return new AiError('auth', 'API anahtarı geçersiz ya da yetkisiz. Ayarlar’dan kontrol edin.');
+  const msg = errorMessage(body);
+  // Gemini geçersiz anahtara 401 değil 400 döndürür ("Please pass a valid API key")
+  if (status === 401 || status === 403 || (status === 400 && /api key/i.test(msg))) return new AiError('auth', 'Anahtar geçersiz ya da yetkisiz. Ayarlar › Yapay zekâ’dan kontrol edin.');
   if (status === 429) return new AiError('rate', 'Ücretsiz kullanım limiti doldu. Biraz sonra tekrar deneyin.');
   if (status === 413) return new AiError('server', 'İstek çok büyük; soruyu daraltın.');
   if (status >= 500) return new AiError('server', 'Yapay zekâ servisi şu an yanıt vermiyor.');
-  let msg = body;
-  try {
-    msg = JSON.parse(body)?.error?.message ?? body;
-  } catch {
-    /* gövde düz metin olabilir */
-  }
   return new AiError('server', msg.slice(0, 240));
 }
 
+/**
+ * OpenAI'nin katı JSON şemasını Gemini'nin kabul ettiği biçime çevirir:
+ * type: ['x','null'] → type: 'x', nullable: true; additionalProperties kaldırılır.
+ */
+export function toGeminiSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(toGeminiSchema);
+  if (!node || typeof node !== 'object') return node;
+  const out: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(node as Record<string, unknown>)) {
+    if (k === 'additionalProperties' || k === 'strict') continue;
+    if (k === 'type' && Array.isArray(v)) {
+      const real = v.filter((t) => t !== 'null');
+      out.type = real[0] ?? 'string';
+      if (v.includes('null')) out.nullable = true;
+      continue;
+    }
+    if (k === 'properties' && v && typeof v === 'object') {
+      out.properties = Object.fromEntries(Object.entries(v as Record<string, unknown>).map(([pk, pv]) => [pk, toGeminiSchema(pv)]));
+      continue;
+    }
+    out[k] = k === 'items' || k === 'anyOf' ? toGeminiSchema(v) : v;
+  }
+  return out;
+}
+
 export async function chat(config: AiConfig, opts: ChatOptions): Promise<ChatResult> {
+  const gemini = config.provider === 'gemini';
   const model = opts.model ?? config.model;
   const body: Record<string, unknown> = {
     model,
     messages: opts.messages,
     temperature: opts.temperature ?? 0.2,
-    max_completion_tokens: opts.maxTokens ?? 1200,
   };
+  // Gemini'nin OpenAI uyumlu ucu klasik max_tokens'ı bekler
+  body[gemini ? 'max_tokens' : 'max_completion_tokens'] = opts.maxTokens ?? 1200;
   if (opts.tools?.length) {
     body.tools = opts.tools;
     body.tool_choice = 'auto';
   }
   if (opts.jsonSchema) {
-    body.response_format = { type: 'json_schema', json_schema: { name: opts.jsonSchema.name, strict: true, schema: opts.jsonSchema.schema } };
+    body.response_format = gemini
+      ? { type: 'json_schema', json_schema: { name: opts.jsonSchema.name, schema: toGeminiSchema(opts.jsonSchema.schema) } }
+      : { type: 'json_schema', json_schema: { name: opts.jsonSchema.name, strict: true, schema: opts.jsonSchema.schema } };
   }
   // gpt-oss akıl yürütme modelleri: kısa düşünme → daha az token (ücretsiz katman TPM'i dar);
   // iç düşünme metni yanıtta taşınmaz.
@@ -175,7 +210,20 @@ export async function chat(config: AiConfig, opts: ChatOptions): Promise<ChatRes
       throw new AiError('rate', `Ücretsiz kullanım limiti doldu. Yaklaşık ${Math.ceil(retry / 60)} dakika sonra tekrar deneyin.`, retry);
     }
     readUsage(res);
-    if (!res.ok) throw friendly(res.status, await res.text());
+    if (!res.ok) {
+      const err = friendly(res.status, await res.text());
+      // Gemini yapılandırılmış çıktı isteğini reddederse: şemasız, "yalnızca JSON" talimatıyla bir kez daha
+      // (chatJson yanıttaki JSON'u ayıklar). Anahtar ve limit hataları yeniden denenmez.
+      if (gemini && res.status === 400 && err.kind === 'server' && body.response_format && opts.jsonSchema) {
+        delete body.response_format;
+        body.messages = [
+          ...opts.messages,
+          { role: 'user', content: `Yanıtı yalnızca şu JSON şemasına uyan tek bir JSON nesnesi olarak ver, başka metin yazma:\n${JSON.stringify(opts.jsonSchema.schema)}` },
+        ];
+        continue;
+      }
+      throw err;
+    }
     const json = await res.json();
     const result: ChatResult = { message: json.choices?.[0]?.message ?? { role: 'assistant', content: '' }, usage: json.usage };
     if (cacheKey) await db.aiCache.put({ hash: cacheKey, value: result, createdAt: new Date().toISOString() });
@@ -206,12 +254,48 @@ export async function listModels(config: Pick<AiConfig, 'apiKey' | 'baseUrl'>): 
   }
   if (!res.ok) throw friendly(res.status, await res.text());
   const json = await res.json();
-  return (json.data ?? []).map((m: { id: string }) => m.id).sort();
+  // Gemini model kimliklerini "models/gemini-…" olarak listeler; sohbette önekisiz kullanılır
+  return (json.data ?? []).map((m: { id: string }) => m.id.replace(/^models\//, '')).sort();
 }
 
-/** Groq Whisper ile Türkçe konuşmayı yazıya çevirir. */
+async function base64(blob: Blob): Promise<string> {
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  let s = '';
+  for (let i = 0; i < buf.length; i += 0x8000) s += String.fromCharCode(...buf.subarray(i, i + 0x8000));
+  return btoa(s);
+}
+
+/** Gemini'de Whisper ucu yok: ses kendi API'sine satır içi gönderilir. */
+async function transcribeGemini(config: AiConfig, audio: Blob): Promise<string> {
+  let res: Response;
+  try {
+    res = await fetch(`${GEMINI_NATIVE}/models/${config.sttModel}:generateContent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'x-goog-api-key': config.apiKey },
+      body: JSON.stringify({
+        contents: [
+          {
+            parts: [
+              { inline_data: { mime_type: audio.type || 'audio/webm', data: await base64(audio) } },
+              { text: 'Bu Türkçe ses kaydını olduğu gibi yazıya dök. Yalnızca söyleneni yaz; açıklama ekleme.' },
+            ],
+          },
+        ],
+        generationConfig: { temperature: 0 },
+      }),
+    });
+  } catch {
+    throw new AiError('network', 'Ses servisine ulaşılamadı.');
+  }
+  if (!res.ok) throw friendly(res.status, await res.text());
+  const json = await res.json();
+  return String(json.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
+}
+
+/** Türkçe konuşmayı yazıya çevirir: Groq'ta Whisper, Gemini'de modelin kendisi. */
 export async function transcribe(config: AiConfig, audio: Blob): Promise<string> {
   await throttle();
+  if (config.provider === 'gemini') return transcribeGemini(config, audio);
   const form = new FormData();
   form.append('file', audio, 'kayit.webm');
   form.append('model', config.sttModel);

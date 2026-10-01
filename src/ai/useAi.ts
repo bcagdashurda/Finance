@@ -3,6 +3,7 @@ import { useFinance } from '@/app/finance';
 import { setSetting } from '@/data/repo';
 import { SETTINGS_KEYS } from '@/data/keys';
 import { envCloudConfig, useCloud } from '@/cloud/store';
+import { aiForAccount, supabaseUserSettings } from '@/cloud/userSettings';
 import { transcribe } from './client';
 import { AiError } from './client';
 import { DEFAULT_AI, effectiveAiConfig, type AiConfig } from './config';
@@ -10,7 +11,15 @@ import { askAssistant, categorizeBatch, draftReminder, narrateInsights, parseEnt
 import { readReceipt } from './gemini';
 
 export async function saveAiConfig(current: AiConfig, patch: Partial<AiConfig>): Promise<void> {
-  await setSetting(SETTINGS_KEYS.ai, { ...DEFAULT_AI, ...current, ...patch });
+  const next = { ...DEFAULT_AI, ...current, ...patch };
+  await setSetting(SETTINGS_KEYS.ai, next);
+  // Giriş yapılmışsa hesaba da yaz: anahtar bir kez girilir, diğer cihazlarda hazır gelir.
+  // Kaldırılan bağlantı da hesaptan silinir (yoksa sonraki girişte geri yüklenirdi).
+  const { client, session } = useCloud.getState();
+  if (client && session && next.consentAt !== 'env') {
+    const ai = aiForAccount(next);
+    if (ai || !next.apiKey) void supabaseUserSettings(client, session.user.id).putAi(ai).catch(() => undefined);
+  }
 }
 
 export function useAi() {
@@ -28,7 +37,13 @@ export function useAi() {
       return eff;
     };
     const enabled = Boolean(effectiveAiConfig(config, session && cloudUrl ? { url: cloudUrl, accessToken: session.access_token } : null));
-    const gemini = config.gemini?.apiKey && config.gemini.consentAt ? config.gemini : null;
+    // Fiş okuma: Gemini ana sağlayıcıysa aynı anahtar; Groq'ta isteğe bağlı ayrı Gemini anahtarı
+    const gemini =
+      enabled && config.provider === 'gemini'
+        ? { apiKey: config.apiKey, model: config.model }
+        : config.gemini?.apiKey && config.gemini.consentAt
+          ? config.gemini
+          : null;
     return {
       enabled,
       config,

@@ -79,7 +79,7 @@ export function useGettingStarted() {
     {
       key: 'ai',
       title: 'Yapay zekâyı açın',
-      body: 'Ücretsiz Groq anahtarıyla yazarak ya da konuşarak kayıt, fiş okuma ve finans asistanı.',
+      body: 'Ücretsiz bir Groq ya da Gemini anahtarıyla yazarak ya da konuşarak kayıt, fiş okuma ve finans asistanı.',
       time: '2 dk',
       icon: <Sparkle size={20} weight="duotone" />,
       done: ai.enabled,

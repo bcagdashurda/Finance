@@ -509,6 +509,23 @@ revoke all on function public.mizan_add_member(text, text, text) from anon;
 grant execute on function public.mizan_add_member(text, text, text) to authenticated;
 
 -- -----------------------------------------------------------------------------
+-- Kullanıcıya bağlı ayarlar (yapay zekâ bağlantısı): anahtar bir kez girilir, kullanıcının
+-- giriş yaptığı her cihazda hazır gelir. Satırı yalnızca kullanıcının kendisi görür ve değiştirir.
+-- -----------------------------------------------------------------------------
+create table if not exists public.user_settings (
+  user_id    uuid primary key default auth.uid() references auth.users (id) on delete cascade,
+  ai         jsonb,
+  updated_at timestamptz not null default now()
+);
+
+alter table public.user_settings enable row level security;
+drop policy if exists user_settings_own on public.user_settings;
+create policy user_settings_own on public.user_settings for all to authenticated
+  using (user_id = auth.uid()) with check (user_id = auth.uid());
+revoke all on public.user_settings from anon;
+grant select, insert, update, delete on public.user_settings to authenticated;
+
+-- -----------------------------------------------------------------------------
 -- Raporlama görünümleri (Supabase panelinden SQL ile analiz için; RLS'ye tabidir)
 -- -----------------------------------------------------------------------------
 create or replace view public.v_monthly_cashflow
