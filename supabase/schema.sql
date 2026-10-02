@@ -564,5 +564,6 @@ having d.amount - coalesce(sum(a.amount) filter (where a.deleted_at is null), 0)
 grant select on public.v_monthly_cashflow to authenticated;
 grant select on public.v_open_documents to authenticated;
 
--- Bitti. Supabase › Project Settings › API sayfasındaki  Project URL  ve
--- anon public  anahtarını Mizan › Ayarlar › Bulut senkronu bölümüne yapıştırın.
+-- Bitti. Supabase › Project Settings › API sayfasındaki  Project URL  ve  anon public  anahtarını
+-- .env.local dosyasına (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) ya da Vercel'in Environment
+-- Variables bölümüne yazın (KURULUM.md 2.3). Kullanıcılar uygulamada yalnızca giriş yapar.

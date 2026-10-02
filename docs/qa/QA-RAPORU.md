@@ -327,4 +327,13 @@ Testler: birim 12 yeni (ad gizleme 4, istem yapısı 2, yanıt doğrulama ve IBA
 - İstemlerin sessizce şişmemesi için birim testi eklendi (bugünkü boyut + %10); aşan değişiklik, gerçek değerlendirmede kazandırdığını göstermeli.
 - Ortam notu (uygulama hatası değil): Vitest, Windows'ta çalışma klasörü küçük sürücü harfiyle ("c:\…") verilince hiç test bulamıyor; bu yalnızca Claude Code'un başlattığı kabukta oluyor, PowerShell ve Git Bash yolu "C:" yapıyor.
 
+## Anahtar ve SQL öncesi son kontroller (2026-10-03) — 🔧
+
+"Yalnızca anahtar, SQL ve depo mu kaldı?" sorusu üzerine o güne kadar hiç denenmemiş kısımlar sınandı:
+- **`supabase/schema.sql` gerçek Postgres'te (PGlite, PostgreSQL 18; Supabase'in auth şeması ve rolleri taklit edildi): 36/36.** İki kez çalıştırma ve veri yüklüyken yeniden çalıştırma sorunsuz; örnek işletmenin 1.775 satırı uygulamanın kendi eşlemesiyle, uygulamanın yöntemiyle (insert … on conflict) yüklendi; değişiklik çekme sorgusu, yumuşak silme, rapor görünümleri çalışıyor. Erişim: üye olmayan 0 satır görüyor ve yazamıyor, anonim tamamen kapalı, görüntüleyici yazamıyor, düzenleyici sahipliği devralamıyor ve üye ekleyemiyor, yapay zekâ anahtarını yalnızca sahibi görüyor. Kural bilerek gevşetilince 3 kontrol kırmızıya düştü. Uygulamanın tüm değer listeleri (hesap/cari türleri, işlem kaynakları, KDV 0/1/10/20, çek durumları, sıklık) SQL'in izin verdikleriyle birebir aynı; tutarlar her yerde tam sayıya yuvarlanıyor. Dosya sonundaki eskimiş yorum düzeltildi.
+- **Yayındaki güncelleme akışı: 8/8.** v1 açıkken sunucuya v2 konuldu: kullanıcının işi bölünmeden "yeni sürüm hazır" çıktı, "Yenile" ile v2 geldi, veriler yerinde, bildirim tekrar etmiyor, yeni sürüm internetsiz açılıyor.
+- **Kurulum kılavuzu:** doğrulama e-postası dönüş adresi ve e-posta sınırı anlatılmış; Vercel ve Netlify ayar dosyaları yerinde.
+- **Hata — iPhone'da sesle kayıt:** kod her tarayıcıda webm istiyordu; webm kaydedemeyen Safari'de kayıt hiç başlamazdı ve kayıt başarısız olunca mikrofon açık kalıyordu. Artık tarayıcının desteklediği biçim seçiliyor (Safari mp4), dosya adı biçime uyuyor, hatalar Türkçe, başarısız denemede mikrofon kapanıyor. Gemini belgelerine göre webm/mp4 almadığı için ses Gemini'ye cihazda WAV'a çevrilip gidiyor. Ses → metinde tutarların rakamla yazılması isteniyor (ayrıştırıcı rakamlı metinde çalışıyor). Playwright'ın Windows Safari motorunda ses kaydı olmadığından **gerçek iPhone'da denenmesi gerekiyor**.
+- Bilerek ertelenen: diğer bankaların ekstre biçimleri (pilottan gelecek gerçek ekstrelerle), `ai-proxy` sunucu işlevi (yalnızca yapay zekâyı herkese siz sağlarsanız gerekir).
+
 Ekran: `anahtar-guvenligi.png`, `bagli.png` (test çıktıları)

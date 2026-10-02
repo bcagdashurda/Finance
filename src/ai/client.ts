@@ -4,6 +4,7 @@
  */
 import { db } from '@/data/db';
 import { GEMINI_NATIVE, type AiConfig } from './config';
+import { audioFileName, geminiAcceptsAudio, toWav } from './audio';
 
 export type Role = 'system' | 'user' | 'assistant' | 'tool';
 
@@ -265,8 +266,19 @@ async function base64(blob: Blob): Promise<string> {
   return btoa(s);
 }
 
+/**
+ * Ses → metin. Metin doğrudan kayıt ayrıştırıcısına gider: tutar ve tarihler rakamla yazılmalı
+ * ("kırk beş bin" değil "45 bin"); ayrıştırıcı ve yapay zekâ iyileştirmesi rakamlı metinde çalışır.
+ */
+const STT_INSTRUCTION =
+  'Bu Türkçe ses kaydını yazıya dök. Yalnızca söyleneni yaz; yorum ya da açıklama ekleme. Tutarları ve tarihleri rakamla yaz ("kırk beş bin lira" → "45 bin lira", "on beş ekim" → "15 Ekim"). Kayıtta konuşma yoksa boş yanıt ver.';
+/** Whisper biçimi örnekten öğrenir (talimat değil, yazım örneği); gerçek cari adı içermez. */
+const WHISPER_STYLE = 'Akın Yapı’dan 45.000 TL tahsilat geldi. 12.500 lira kira ödedim, vadesi 15 Ekim.';
+
 /** Gemini'de Whisper ucu yok: ses kendi API'sine satır içi gönderilir. */
 async function transcribeGemini(config: AiConfig, audio: Blob): Promise<string> {
+  // Gemini webm/mp4 kabul etmez: cihazda WAV'a çevir (çözülemezse olduğu gibi dene)
+  const sendable = geminiAcceptsAudio(audio.type) ? audio : await toWav(audio).catch(() => audio);
   let res: Response;
   try {
     res = await fetch(`${GEMINI_NATIVE}/models/${config.sttModel}:generateContent`, {
@@ -276,8 +288,8 @@ async function transcribeGemini(config: AiConfig, audio: Blob): Promise<string> 
         contents: [
           {
             parts: [
-              { inline_data: { mime_type: audio.type || 'audio/webm', data: await base64(audio) } },
-              { text: 'Bu Türkçe ses kaydını olduğu gibi yazıya dök. Yalnızca söyleneni yaz; açıklama ekleme.' },
+              { inline_data: { mime_type: sendable.type.split(';')[0] || 'audio/webm', data: await base64(sendable) } },
+              { text: STT_INSTRUCTION },
             ],
           },
         ],
@@ -294,12 +306,14 @@ async function transcribeGemini(config: AiConfig, audio: Blob): Promise<string> 
 
 /** Türkçe konuşmayı yazıya çevirir: Groq'ta Whisper, Gemini'de modelin kendisi. */
 export async function transcribe(config: AiConfig, audio: Blob): Promise<string> {
+  if (!audio.size) throw new AiError('server', 'Ses kaydı boş; birkaç saniye konuşup tekrar deneyin.');
   await throttle();
   if (config.provider === 'gemini') return transcribeGemini(config, audio);
   const form = new FormData();
-  form.append('file', audio, 'kayit.webm');
+  form.append('file', audio, audioFileName(audio.type));
   form.append('model', config.sttModel);
   form.append('language', 'tr');
+  form.append('prompt', WHISPER_STYLE);
   form.append('response_format', 'json');
   let res: Response;
   try {
