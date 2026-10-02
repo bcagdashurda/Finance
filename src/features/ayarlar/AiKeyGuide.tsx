@@ -329,7 +329,7 @@ export function AiKeyGuide({
           <span>{g.note}</span>
         </p>
       )}
-      <p className="mt-4 text-2xs text-muted">Çizimler temsilidir; sitelerin görünümü zamanla değişebilir. Anahtar yalnızca bu cihazda saklanır.</p>
+      <p className="mt-4 text-2xs text-muted">Çizimler temsilidir; sitelerin görünümü zamanla değişebilir. Anahtarınız yalnızca {provider === 'groq' ? 'Groq’a' : 'Google’a'} gönderilir; ayrıntılar Ayarlar’daki “Anahtarım güvende mi?” bölümünde.</p>
 
       <div className="sticky -bottom-5 -mx-6 -mb-5 mt-6 flex items-center justify-end gap-2 border-t border-line bg-[color-mix(in_oklab,var(--surface)_92%,transparent)] px-6 py-4 backdrop-blur">
         <Button variant="ghost" onClick={() => onOpenChange(false)}>

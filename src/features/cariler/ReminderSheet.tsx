@@ -58,7 +58,7 @@ function ReminderComposer({ contact }: { contact: Contact }) {
   async function rewrite() {
     setRewriting(true);
     try {
-      const text = await ai.draftReminder({ tone, contactName: contact.name, ourCompany: input.ourCompany, draft: body });
+      const text = await ai.draftReminder({ tone, contactId: contact.id, maxDaysLate: input.maxDaysLate, draft: body });
       if (text) setBody(text);
     } catch (e) {
       toast.error('Yapay zekâ yanıt veremedi', { description: e instanceof Error ? e.message : String(e) });

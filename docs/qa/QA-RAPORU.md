@@ -290,3 +290,26 @@ Not: ölçümler hızlı bir bilgisayarda; orta seviye bir telefonda birkaç kat
 CPU profili: sürenin çoğu JavaScript değil (uygulama + React ~100–200 ms), tarayıcının çizimi (görsel efektler). Ucuz telefonda efektleri sadeleştirme kararı gerçek cihaz görüldükten sonra verilecek. Boşta sayfa kodlarının arka planda indirilmesi eklendi (ilk ziyarette ağ beklenmez, çevrimdışında hepsi hazır); ölçülen hız kazancı ihmal edilebilir düzeyde — dürüst not.
 
 **Gerçek Excel (.xlsx) ekstresi:** üstte rapor başlıkları, tarihler Excel tarih sayısı (bazılarında 14:35 ve 23:50 saati), tutarlar sayı. Chrome, telefon ve Firefox'ta 13 satır doğru okundu, gece 23:50'deki işlem ertesi güne kaymadı, tutar ve yönler doğru. Kodda saat dilimi hatası bilerek eklenince test kırmızıya düştü — kanıt.
+
+## Yapay zekâ istemleri ve anahtar güvenliği (2026-10-03) — 🔧
+
+İstek: "Anahtar nasıl saklanıyor, sızmadığını kullanıcı anlasın. İstemler (prompt) balık vermek yerine balık tutmayı öğreten, anlam çerçevesi veren biçimde mi yazıldı?"
+
+**İstemler yeniden yazıldı** (`src/ai/prompts.ts`, hepsi tek yerde). Eskiler kısa kural listeleriydi ("collect=müşteriden tahsilat…"). Yenilerinin her biri aynı iskeleti izliyor: amaç ve okuyucu → alan kavramları → modelin sırayla soracağı karar soruları → emin değilse ne yapacağı ve nedeni → çıktı biçimi. Örnek: kayıt türü ezber eşleme yerine iki soruyla bulunuyor ("Para şimdi el değiştirdi mi, yoksa yalnızca hak/borç mu doğdu?" → "Hangi yöne ve kiminle?"); yönü sözcüğün değil fiil ve hâl ekinin belirlediği anlatılıyor ("Akın ödedi" giriş, "Akın'a ödedim" çıkış). Ekstre istemi banka dilini öğretiyor (SGK, BSMV, KKDF, POS, OTS, virman) ve yanlış eşleşmenin neden boşluktan pahalı olduğunu açıklıyor (onaylanan öneri kurala dönüşüp her ay tekrarlanır). Bugünün tarihi haftanın günüyle veriliyor ("geçen cuma" için). Değişmeyen talimat başta, tarih sonda: sağlayıcının istem önbelleği çalışır.
+
+**İnceleme sırasında bulunan ve düzeltilen gerçek hatalar:**
+- **Ad gizleme banka ekstresinde çalışmıyordu.** "Müşteri adlarını gizle" açıkken "YILDIZ GIDA A.S." (büyük harf, Türkçe karaktersiz), "Şahin'e"/"Özkan'a" (Türkçe harfle başlayan) ve "yıldız gıdadan" (küçük harf) **gizlenmeden** gidiyordu; model de listeyi "Cari-3" diye gördüğü için ekstre satırını cariyle hiç eşleştiremiyordu. Eşleştirme artık harf büyüklüğüne ve Türkçe/ASCII farkına duyarsız; iki firmaya uyan kısa adlar ("Ege") ve küçük harfli sıradan sözcükler ("mavi boya") gizlenmiyor. Eski kodla ölçüldü, 5 örnekten 4'ü gizlenmiyordu.
+- **Onay ekranı "IBAN'larınız gönderilmez" diyor, hatırlatma yeniden yazımı IBAN'ı gönderiyordu.** IBAN artık `[IBAN-1]` yer tutucusuyla gidiyor, yanıtta geri konuyor; model yer tutucuyu düşürürse IBAN mesajın sonuna ekleniyor.
+- **"Özetle" üç yerde aynı "sabah brifingi" talimatını alıyordu** (Kokpit brifingi, Raporlar yönetici özeti, Aylık hikâye). Her biri artık kendi amacını ve okuyucusunu biliyor; brifingde risk etiketli tespitler öne alınıyor.
+- **Hatırlatma "carinin durumuna göre yeniden yazar" diyordu ama carinin durumu gönderilmiyordu.** Artık gecikme günü ve ödeme alışkanlığı (cihazda hesaplanan) tonu ayarlamak için gidiyor; mesaja yazılmıyor.
+- **Ekranlar Markdown göstermiyor, model başlık/tablo/kalın yazabiliyordu.** İstemde ekranın ne gösterebildiği söyleniyor; özet ve mesajlarda kalan işaretler cihazda temizleniyor.
+- **Asistanın işlem araması Türkçe ekleri kaçırıyordu** ("kira ödemeleri" → "KIRA ODEMESI" bulunamıyordu). Birebir sonuç yoksa sözcük köküyle yaklaşık aranıyor ve bu sonuçta belirtiliyor.
+- **Modelin yanıtı cihazda doğrulanıyor:** yönü tutmayan kategori (gelire gider kategorisi) reddediliyor; girdide olmayan satır numarası yok sayılıyor; adlar harf büyüklüğü farkıyla da bulunuyor; cariye bağlı gelir/gider tahsilat/ödemeye çevriliyor.
+- Ekstre açıklamalarına gömülü "önceki talimatları yok say" türü metinlerin veri olduğu, talimat olmadığı her istemde belirtiliyor.
+
+**Anahtar güvenliği notu:** Ayarlar › Yapay zekâ'da anahtar kutusunun altında ve bağlıyken "Anahtarım güvende mi?" bölümü: bir kez girilir, bu tarayıcıda saklanır; yalnızca Groq'a/Google'a doğrudan gider, arada Mizan sunucusu yok; yedeklere girmez; (bulut kuruluysa) hesaba kaydedilen kopyayı yalnızca kullanıcı okur, kaldırınca silinir; güvenlik politikası dış kodu engeller ama eklentiler ve aynı oturumu kullanan biri erişebilir (ortak bilgisayarda "Kaldır"); ödeme yöntemine bağlı olmayan ücretsiz anahtar kötüye kullanılsa bile ücret çıkmaz, sağlayıcı sayfasından silinip yenilenebilir. Not yalnızca doğru olanı söylüyor: bulut kurulu değilse hesap satırı görünmüyor (testle denetleniyor).
+
+Testler: birim 12 yeni (ad gizleme 4, istem yapısı 2, yanıt doğrulama ve IBAN 4, arama 1, Markdown 1); kategori yön koruması bilerek bozulunca 2 test kırmızıya düştü. Uçtan uca: güvenlik notu (bağlı değil/bağlı, masaüstü ve telefon; anahtarın açık hâli sayfada görünmüyor).
+**Gerçek yanıt ölçümü hazır, henüz koşulmadı:** `src/ai/prompts.eval.test.ts` — 15 kayıt cümlesi ve 15 ekstre satırı, beklenen yanıtlarıyla; adlar açık ve gizli; eşik %85 alan doğruluğu ve sıfır yanlış yönlü kategori. Anahtar girildiğinde ilk iş bu koşulacak; istemler buna göre ayarlanacak.
+
+Ekran: `anahtar-guvenligi.png`, `bagli.png` (test çıktıları)

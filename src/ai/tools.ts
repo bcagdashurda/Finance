@@ -38,7 +38,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'get_upcoming',
-      description: 'Önümüzdeki N gündeki beklenen tahsilat ve ödemeler (tarih, cari, tutar).',
+      description: "Önümüzdeki N gündeki beklenen tahsilat ve ödemeler. 'tarih' carinin geçmiş gecikme alışkanlığına göre paranın beklendiği gün, 'vade' belgedeki gündür.",
       parameters: {
         type: 'object',
         properties: { days: { type: 'integer', minimum: 1, maximum: 120 }, direction: { type: 'string', enum: ['in', 'out', 'all'] } },
@@ -51,7 +51,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'get_overdue',
-      description: 'Vadesi geçmiş alacaklar ya da borçlar, cari bazında.',
+      description: "Vadesi geçmiş alacaklar (receivable: bize ödenmeyen) ya da borçlar (payable: bizim ödemediğimiz), cari bazında, büyükten küçüğe. 'Kimi aramalıyım?' gibi sorular için.",
       parameters: { type: 'object', properties: { direction: { type: 'string', enum: ['receivable', 'payable'] } }, required: ['direction'], additionalProperties: false },
     },
   },
@@ -80,7 +80,8 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'search_transactions',
-      description: 'Açıklama, cari ya da kategori adına göre işlem arar.',
+      description:
+        "Geçmiş işlemlerde açıklama, cari ya da kategori adında geçen sözcüklerle arar; 'toplam' bulunanların net tutarıdır. Sorguya 1–2 kök sözcük yaz ('kira', 'akaryakıt', cari adı); 'ödemeleri', 'harcamalar' gibi genel sözcükler ekleme. Tarihler YYYY-AA-GG.",
       parameters: {
         type: 'object',
         properties: { query: { type: 'string' }, from: { type: 'string' }, to: { type: 'string' }, limit: { type: 'integer', minimum: 1, maximum: 30 } },
@@ -101,7 +102,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'simulate',
-      description: 'Ya şöyle olursa? Bir carinin tahsilatlarını geciktir, tek seferlik ya da aylık gelir/gider ekle; projeksiyona etkisini döndürür.',
+      description: 'Ya şöyle olursa? Bir carinin tahsilatlarını geciktir, tek seferlik ya da aylık gelir/gider ekle; projeksiyona etkisini (baz, senaryo, fark) döndürür. Hiçbir şey kaydedilmez.',
       parameters: {
         type: 'object',
         properties: {
@@ -255,13 +256,18 @@ export function runTool(name: string, argsJson: string, f: Finance, m: Masker): 
       const from = String(args.from ?? '0000');
       const to = String(args.to ?? '9999');
       const limit = Math.min(30, Number(args.limit) || 15);
-      const hits = f.transactionsDesc.filter((t) => {
-        if (t.date < from || t.date > to) return false;
-        const hay = normalizeTr([t.description, t.contactId && f.contactsById.get(t.contactId)?.name, t.categoryId && f.categoriesById.get(t.categoryId)?.name].filter(Boolean).join(' '));
-        return q.split(/\s+/).every((w) => hay.includes(w));
-      });
+      const rows = f.transactionsDesc
+        .filter((t) => t.date >= from && t.date <= to)
+        .map((t) => ({ t, hay: normalizeTr([t.description, t.contactId && f.contactsById.get(t.contactId)?.name, t.categoryId && f.categoriesById.get(t.categoryId)?.name].filter(Boolean).join(' ')) }));
+      const words = q.split(/\s+/).filter(Boolean);
+      const find = (ws: string[]) => rows.filter((r) => ws.every((w) => r.hay.includes(w))).map((r) => r.t);
+      let hits = find(words);
+      // Türkçe ekler ("kiraları", "ödemeleri"): birebir sonuç yoksa sözcük köklerinin ilk 4 harfiyle ara
+      const approximate = !hits.length && words.some((w) => w.length > 4);
+      if (approximate) hits = find(words.map((w) => w.slice(0, 4)));
       return {
         bulunan: hits.length,
+        ...(approximate ? { not: 'Birebir eşleşme yoktu; sözcük kökleriyle yaklaşık arandı.' } : {}),
         toplam: tl(hits.reduce((s, t) => s + (t.kind === 'expense' ? -1 : t.kind === 'income' ? 1 : 0) * amountInBase(t.amount, t.rateToBase), 0)),
         islemler: hits.slice(0, limit).map((t) => ({
           tarih: t.date,

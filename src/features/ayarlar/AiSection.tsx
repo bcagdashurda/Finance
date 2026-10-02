@@ -16,6 +16,8 @@ import { Badge, Toggle } from '@/ui/bits';
 import { Modal } from '@/ui/Overlay';
 import { cn } from '@/ui/cn';
 import { AiKeyGuide, type KeyProvider } from './AiKeyGuide';
+import { KeySafety } from './KeySafety';
+import { cloudAvailable } from './CloudSection';
 
 const LABEL: Record<KeyProvider, string> = { groq: 'Groq', gemini: 'Google Gemini' };
 
@@ -203,7 +205,7 @@ export function AiSection({ index }: { index: number }) {
           <div>
             <div className="mb-2 text-sm font-semibold text-ink">3. Anahtarı yapıştırıp bağlanın</div>
             <div className="grid gap-3 sm:grid-cols-[1fr_auto] sm:items-start">
-              <Field label={`${LABEL[provider]} anahtarı`} hint={note ?? 'Yalnızca bu cihazda saklanır; yedek dosyalarına eklenmez.'}>
+              <Field label={`${LABEL[provider]} anahtarı`} hint={note ?? `Bir kez girersiniz; bu tarayıcı hatırlar. Yalnızca ${provider === 'groq' ? 'Groq’a' : 'Google’a'} gönderilir.`}>
                 {(p) => (
                   <TextInput {...p} type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => onKey(e.target.value)} placeholder={provider === 'groq' ? 'gsk_…' : 'AIza…'} className="num" />
                 )}
@@ -217,10 +219,11 @@ export function AiSection({ index }: { index: number }) {
                 Vazgeç, mevcut bağlantıyı koru
               </button>
             )}
+            <KeySafety provider={provider} accountSync={cloudAvailable(f.settings.cloud)} className="mt-3" />
           </div>
         </div>
       ) : (
-        <ConnectedView cfg={cfg} activeLabel={activeLabel} onChange={() => setChanging(true)} onConsent={() => setConsentOpen(true)} />
+        <ConnectedView cfg={cfg} activeLabel={activeLabel} accountSync={cloudAvailable(f.settings.cloud)} onChange={() => setChanging(true)} onConsent={() => setConsentOpen(true)} />
       )}
 
       <AiKeyGuide provider={provider} open={guideOpen} onOpenChange={setGuideOpen} onPaste={onKey} />
@@ -261,7 +264,19 @@ export function AiSection({ index }: { index: number }) {
   );
 }
 
-function ConnectedView({ cfg, activeLabel, onChange, onConsent }: { cfg: AiConfig; activeLabel: string; onChange: () => void; onConsent: () => void }) {
+function ConnectedView({
+  cfg,
+  activeLabel,
+  accountSync,
+  onChange,
+  onConsent,
+}: {
+  cfg: AiConfig;
+  activeLabel: string;
+  accountSync: boolean;
+  onChange: () => void;
+  onConsent: () => void;
+}) {
   const save = (patch: Partial<AiConfig>) => saveAiConfig(cfg, patch);
   const masked = cfg.apiKey ? `${cfg.apiKey.slice(0, 4)}…${cfg.apiKey.slice(-4)}` : '';
   return (
@@ -293,6 +308,7 @@ function ConnectedView({ cfg, activeLabel, onChange, onConsent }: { cfg: AiConfi
           </>
         )}
       </div>
+      {(cfg.provider === 'groq' || cfg.provider === 'gemini') && cfg.consentAt !== 'env' && <KeySafety provider={cfg.provider} accountSync={accountSync} />}
 
       <label className="flex items-center justify-between gap-3 rounded-[14px] border border-line px-4 py-3 text-sm">
         <span>

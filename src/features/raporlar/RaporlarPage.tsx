@@ -209,7 +209,7 @@ function ExecSummary({ facts }: { facts: Array<{ title: string; body: string }> 
               onClick={async () => {
                 setBusy(true);
                 try {
-                  setText(await ai.narrate(facts));
+                  setText(await ai.narrate(facts, 'rapor'));
                 } catch (e) {
                   toast.error('Özet oluşturulamadı', { description: e instanceof Error ? e.message : '' });
                 } finally {

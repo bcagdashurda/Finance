@@ -21,6 +21,12 @@ Kapsanan: kurulum, hesaplar, cariler (Excel'den toplu aktarma dahil), günlük k
 
 Bekleyen: **S15 yapay zekâ** ve **S16 bulut eşitleme** senaryoları — bir Groq/Gemini anahtarı ve Supabase projesi girildiğinde gerçek yanıtlarla oynanacak. (Anahtarsız yapılabilen kısım yapıldı: Groq ve Gemini sunucularına tarayıcıdan erişim ve hatalı anahtar mesajları canlı doğrulandı.)
 
+**Yapay zekâ istemlerinin ölçümü (anahtarı alınca ilk iş):** 15 kayıt cümlesi ve 15 banka ekstresi satırı, beklenen yanıtlarıyla hazır (`src/ai/prompts.eval.test.ts`). PowerShell'de:
+```
+$env:MIZAN_AI_EVAL_KEY="gsk_..."; npx vitest run src/ai/prompts.eval.test.ts
+```
+Her durumu adlar açık ve gizli iki kez çalıştırır, alan alan doğruluk yüzdesini yazar; geçme eşiği %85. İstemlerin kendisi `src/ai/prompts.ts` dosyasında, açıklamalarıyla birlikte.
+
 ## 4. Sizden beklenen kararlar
 1. **"Sade mod"** eklensin mi? Esnaf ve serbest çalışanlar için kurulumda seçilen, çek/senet, KDV ve senaryoları gizleyen basit görünüm (yaklaşık 1 günlük iş).
 2. **GitHub'a gönderme (push):** onay verdiğinizde ve depo adresini paylaştığınızda yapılır. Şu an tüm çalışma yalnızca bu bilgisayarda, yerel git geçmişinde.

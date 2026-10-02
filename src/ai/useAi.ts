@@ -8,6 +8,7 @@ import { transcribe } from './client';
 import { AiError } from './client';
 import { DEFAULT_AI, effectiveAiConfig, type AiConfig } from './config';
 import { askAssistant, categorizeBatch, draftReminder, narrateInsights, parseEntryAI, type AssistantTurn, type CategorizeLine } from './features';
+import type { NarrateKind } from './prompts';
 import { readReceipt } from './gemini';
 
 export async function saveAiConfig(current: AiConfig, patch: Partial<AiConfig>): Promise<void> {
@@ -49,8 +50,8 @@ export function useAi() {
       config,
       parseEntry: (text: string) => parseEntryAI(text, f, resolve()),
       categorize: (lines: CategorizeLine[]) => categorizeBatch(lines, f, resolve()),
-      draftReminder: (input: { tone: string; contactName: string; ourCompany: string; draft: string }) => draftReminder(input, f, resolve()),
-      narrate: (insights: Array<{ title: string; body: string }>) => narrateInsights(insights, f, resolve()),
+      draftReminder: (input: Parameters<typeof draftReminder>[0]) => draftReminder(input, f, resolve()),
+      narrate: (insights: Parameters<typeof narrateInsights>[0], kind?: NarrateKind) => narrateInsights(insights, f, resolve(), kind),
       ask: (history: AssistantTurn[], q: string, signal?: AbortSignal) => askAssistant(history, q, f, resolve(), signal),
       transcribe: (blob: Blob) => transcribe(resolve(), blob),
       receipt: gemini ? (image: Blob) => readReceipt(gemini.apiKey, gemini.model, image) : null,

@@ -599,6 +599,8 @@ function DataCard({ title, body, action, danger }: { title: string; body: string
 
 function AppearanceSection() {
   const { theme, setTheme } = useUI();
+  const f = useFinance();
+  const synced = Boolean(f.settings.cloud?.linked.includes(f.workspace.id)) && !f.settings.isDemo;
   const shortcuts: Array<[string[], string]> = [
     [[MOD_KEY, 'K'], 'Arama ve komut paleti (yazarak kayıt)'],
     [['N'], 'Yeni kayıt'],
@@ -637,7 +639,9 @@ function AppearanceSection() {
           </li>
         ))}
       </ul>
-      <p className="mt-5 text-2xs text-muted">Mizan 0.1 · verileriniz yalnızca bu cihazdadır · hareket azaltma tercihiniz (işletim sistemi) otomatik uygulanır.</p>
+      <p className="mt-5 text-2xs text-muted">
+        Mizan 0.1 · {synced ? 'verileriniz bu cihazda ve hesabınızda' : 'verileriniz yalnızca bu cihazdadır'} · hareket azaltma tercihiniz (işletim sistemi) otomatik uygulanır.
+      </p>
     </Section>
   );
 }

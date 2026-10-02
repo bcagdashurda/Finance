@@ -1,17 +1,35 @@
 import type { Finance } from '@/app/finance';
 import { buildEntryContext } from '@/app/entry-context';
-import { parseEntry, type EntryKind, type ParsedEntry } from '@/domain/nlp';
+import { normalizeTr, parseEntry, type EntryKind, type ParsedEntry } from '@/domain/nlp';
 import { isISODate } from '@/domain/dates';
 import { isCurrencyCode, toMinor } from '@/domain/money';
 import type { ID } from '@/domain/types';
 import { chat, chatJson, type ChatMessage } from './client';
 import type { AiConfig } from './config';
 import { Masker } from './masking';
+import { assistantPrompt, categorizePrompt, entryPrompt, narratePrompt, reminderPrompt, type NarrateKind, type ReminderToneKey } from './prompts';
 import { runTool, TOOLS } from './tools';
 
 export function makeMasker(f: Finance, config: AiConfig): Masker {
   return new Masker(f.contacts.map((c) => c.name), config.maskNames);
 }
+
+const fold = (s: string) => normalizeTr(s).replace(/[^a-z0-9]+/g, ' ').trim();
+
+/** Modelin yazdığı adı listede bulur: önce birebir, sonra harf büyüklüğü ve noktalama farkını yok sayarak. */
+function byName<T extends { name: string }>(items: T[], name: string | null | undefined): T | undefined {
+  if (!name) return undefined;
+  return items.find((x) => x.name === name) ?? items.find((x) => fold(x.name) === fold(name));
+}
+
+/** Kategori yalnızca kaydın yönüyle uyuşuyorsa kabul edilir (gelir kaydına gider kategorisi olmaz). */
+function categoryFor(f: Finance, name: string | null | undefined, side: 'income' | 'expense' | null): ID | undefined {
+  if (!side) return undefined;
+  return byName(f.categories.filter((c) => c.kind === side && !c.archived), name)?.id;
+}
+
+const sideOf = (k: EntryKind): 'income' | 'expense' | null =>
+  k === 'collect' || k === 'income' || k === 'receivable' ? 'income' : k === 'transfer' ? null : 'expense';
 
 // ---------------------------------------------------------------------------
 // Doğal dil ile kayıt
@@ -50,7 +68,6 @@ export async function parseEntryAI(text: string, f: Finance, config: AiConfig): 
   const ctx = buildEntryContext(f);
   const rule = parseEntry(text, ctx);
   const m = makeMasker(f, config);
-  const contacts = f.contacts.filter((c) => !c.archived).map((c) => m.name(c.name)!);
   const out = await chatJson<EntryJson>(config, {
     model: config.fastModel,
     cache: true,
@@ -59,29 +76,33 @@ export async function parseEntryAI(text: string, f: Finance, config: AiConfig): 
     messages: [
       {
         role: 'system',
-        content: `Türkçe finans kayıt ayrıştırıcısısın. Bugün ${f.today}. Kullanıcının cümlesini tek bir kayda çevir.
-Türler: collect=müşteriden tahsilat, pay=tedarikçiye ödeme, income=cariye bağlı olmayan gelir, expense=cariye bağlı olmayan gider, transfer=hesaplar arası, receivable=kesilen fatura/alacak, payable=gelen fatura/borç.
-"45 bin"=45000, "1,5 milyon"=1500000. Göreli tarihleri bugüne göre çöz. Yalnızca listedeki adları kullan; eşleşme yoksa null.
-Cariler: ${contacts.join(' | ')}
-Kategoriler: ${ctx.categories.map((c) => c.name).join(' | ')}
-Hesaplar: ${ctx.accounts.map((a) => a.name).join(' | ')}`,
+        content: entryPrompt({
+          contacts: ctx.contacts.map((c) => ({ name: m.name(c.name)!, kind: c.kind })),
+          incomeCategories: ctx.categories.filter((c) => c.kind === 'income').map((c) => c.name),
+          expenseCategories: ctx.categories.filter((c) => c.kind === 'expense').map((c) => c.name),
+          accounts: ctx.accounts,
+          today: f.today,
+        }),
       },
       { role: 'user', content: m.mask(text) },
     ],
   });
-  const contactName = out.contact ? m.unmask(out.contact) : null;
-  const contactId = contactName ? f.contacts.find((c) => c.name === contactName)?.id : undefined;
-  const categoryId = out.category ? f.categories.find((c) => c.name === out.category)?.id : undefined;
-  const accountId = out.account ? f.accounts.find((a) => a.name === out.account)?.id : undefined;
+  const contactId = byName(f.contacts, out.contact ? m.unmask(out.contact) : null)?.id ?? rule.contactId;
+  let kind: EntryKind = out.kind ?? rule.kind;
+  // Karşıda cari varsa nakit hareketi cari hareketidir (gelir → tahsilat, gider → ödeme)
+  if (contactId && kind === 'income') kind = 'collect';
+  if (contactId && kind === 'expense') kind = 'pay';
+  const side = sideOf(kind);
+  const ruleCategory = side && f.categoriesById.get(rule.categoryId ?? '')?.kind === side ? rule.categoryId : undefined;
   return {
-    kind: out.kind ?? rule.kind,
+    kind,
     amount: out.amount != null ? toMinor(out.amount) : rule.amount,
     currency: isCurrencyCode(out.currency) ? out.currency : rule.currency,
     date: isISODate(out.date) ? out.date : rule.date,
     dueDate: out.due_date && isISODate(out.due_date) ? out.due_date : rule.dueDate,
-    contactId: contactId ?? rule.contactId,
-    categoryId: categoryId ?? rule.categoryId,
-    accountId: accountId ?? rule.accountId,
+    contactId,
+    categoryId: categoryFor(f, out.category, side) ?? ruleCategory,
+    accountId: byName(f.accounts.filter((a) => !a.archived), out.account)?.id ?? rule.accountId,
     description: m.unmask(out.description || rule.description),
     confidence: Math.max(rule.confidence, 0.85),
   };
@@ -128,20 +149,16 @@ export async function categorizeBatch(lines: CategorizeLine[], f: Finance, confi
         },
       },
       messages: [
-        {
-          role: 'system',
-          content: `Türk banka ekstresi satırlarını sınıflandır. Pozitif tutar gelir, negatif gider. Karşı taraf listedeki bir cariyse contact alanına adını birebir yaz; değilse uygun kategoriyi seç. Emin değilsen null.
-Gelir kategorileri: ${income.join(' | ')}
-Gider kategorileri: ${expense.join(' | ')}
-Cariler: ${contacts.join(' | ')}`,
-        },
+        { role: 'system', content: categorizePrompt({ incomeCategories: income, expenseCategories: expense, contacts }) },
         { role: 'user', content: JSON.stringify(chunk.map((l) => ({ id: l.id, aciklama: m.mask(l.description), tutar: l.amount / 100 }))) },
       ],
     });
+    const byId = new Map(chunk.map((l) => [l.id, l]));
     for (const it of out.items ?? []) {
-      const categoryId = it.category ? f.categories.find((c) => c.name === it.category)?.id : undefined;
-      const cname = it.contact ? m.unmask(it.contact) : null;
-      const contactId = cname ? f.contacts.find((c) => c.name === cname)?.id : undefined;
+      const line = byId.get(it.id);
+      if (!line) continue; // modelin uydurduğu satır
+      const categoryId = categoryFor(f, it.category, line.amount >= 0 ? 'income' : 'expense');
+      const contactId = byName(f.contacts, it.contact ? m.unmask(it.contact) : null)?.id;
       if (categoryId || contactId) result.set(it.id, { categoryId, contactId });
     }
   }
@@ -151,41 +168,63 @@ Cariler: ${contacts.join(' | ')}`,
 // ---------------------------------------------------------------------------
 // Metin üretimi
 
+/** Ekran Markdown göstermez: model yine de yazarsa kalın/başlık işaretlerini temizle. */
+export function plainText(s: string): string {
+  return s
+    .replace(/\*\*([^*]+)\*\*/g, '$1')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/^\s*[-*]\s+/gm, '• ')
+    .trim();
+}
+
+/** TR IBAN: "TR" + 24 rakam, boşluklu ya da boşluksuz */
+const IBAN = /\bTR\d{2}(?:\s?\d){22}\b/g;
+
 export async function draftReminder(
-  input: { tone: string; contactName: string; ourCompany: string; draft: string },
+  input: { tone: ReminderToneKey; contactId?: ID; maxDaysLate?: number; draft: string },
   f: Finance,
   config: AiConfig,
 ): Promise<string> {
   const m = makeMasker(f, config);
+  const habit = input.contactId ? f.behavior.get(input.contactId) : undefined;
+  // IBAN gönderilmez (onay ekranındaki söz): yer tutucuyla gider, yanıtta geri konur
+  const ibans: string[] = [];
+  const draft = input.draft.replace(IBAN, (hit) => `[IBAN-${ibans.push(hit)}]`);
   const r = await chat(config, {
     temperature: 0.5,
     maxTokens: 900,
     messages: [
-      {
-        role: 'system',
-        content: `Türk ticari yazışma geleneğine uygun, ${input.tone} tonda bir tahsilat hatırlatması yaz. Taslaktaki rakamları, tarihleri, belge numaralarını ve IBAN'ı AYNEN koru; yeni rakam ekleme. Kısa, saygılı ve net ol. Yalnızca mesaj metnini döndür.`,
-      },
-      { role: 'user', content: m.mask(input.draft) },
+      { role: 'system', content: reminderPrompt({ tone: input.tone, maxDaysLate: input.maxDaysLate, habit }) },
+      { role: 'user', content: m.mask(draft) },
     ],
   });
-  return m.unmask(r.message.content ?? '').trim();
+  let text = plainText(m.unmask(r.message.content ?? ''));
+  ibans.forEach((iban, i) => {
+    const tag = `[IBAN-${i + 1}]`;
+    text = text.includes(tag) ? text.split(tag).join(iban) : `${text}\n\nIBAN: ${iban}`;
+  });
+  return text;
 }
 
-export async function narrateInsights(insights: Array<{ title: string; body: string }>, f: Finance, config: AiConfig): Promise<string> {
+const TONE_TAG: Record<string, string> = { bad: 'risk', warn: 'uyarı', good: 'olumlu', info: 'bilgi' };
+
+export async function narrateInsights(
+  insights: Array<{ title: string; body: string; tone?: string }>,
+  f: Finance,
+  config: AiConfig,
+  kind: NarrateKind = 'brifing',
+): Promise<string> {
   const m = makeMasker(f, config);
   const r = await chat(config, {
     temperature: 0.4,
     maxTokens: 500,
     cache: true,
     messages: [
-      {
-        role: 'system',
-        content: 'Bir KOBİ finans yöneticisine sabah brifingi yazıyorsun. Verilen tespitleri öncelik sırasına koy ve 3 kısa madde halinde, eyleme dönük Türkçe yaz. Rakamları aynen kullan, yenisini üretme. Madde işareti olarak "•" kullan.',
-      },
-      { role: 'user', content: m.mask(insights.map((i) => `- ${i.title}: ${i.body}`).join('\n')) },
+      { role: 'system', content: narratePrompt(kind) },
+      { role: 'user', content: m.mask(insights.map((i) => `- ${i.tone && TONE_TAG[i.tone] ? `[${TONE_TAG[i.tone]}] ` : ''}${i.title}: ${i.body}`).join('\n')) },
     ],
   });
-  return m.unmask(r.message.content ?? '').trim();
+  return plainText(m.unmask(r.message.content ?? ''));
 }
 
 // ---------------------------------------------------------------------------
@@ -212,16 +251,7 @@ const TOOL_LABEL: Record<string, string> = {
 export async function askAssistant(history: AssistantTurn[], question: string, f: Finance, config: AiConfig, signal?: AbortSignal): Promise<AssistantTurn> {
   const m = makeMasker(f, config);
   const messages: ChatMessage[] = [
-    {
-      role: 'system',
-      content: `Sen Mizan'ın finans asistanısın. İşletme: ${f.workspace.name}. Bugün: ${f.today}. Para birimi: TL.
-Kurallar:
-- Türkçe, kısa ve net yanıt ver; gerektiğinde kısa maddeler kullan.
-- Rakamları ASLA uydurma ya da kendin hesaplama; yalnızca araç sonuçlarındaki değerleri kullan. Gerekiyorsa birden fazla araç çağır.
-- Tarihleri "15 Ekim" biçiminde yaz.
-- Somut bir sonraki adım öner (ör. hangi cariyi aramalı, hangi ödemeyi kaydırmalı).
-- Vergi/hukuk konularında kesin hüküm verme; mali müşavire danışmayı öner.`,
-    },
+    { role: 'system', content: assistantPrompt({ business: f.workspace.name, today: f.today }) },
     ...history.slice(-6).map((t) => ({ role: t.role, content: m.mask(t.content) }) as ChatMessage),
     { role: 'user', content: m.mask(question) },
   ];

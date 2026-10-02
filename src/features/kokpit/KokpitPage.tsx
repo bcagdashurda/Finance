@@ -629,7 +629,7 @@ function Briefing({ insights }: { insights: Insight[] }) {
             if (text) return;
             setBusy(true);
             try {
-              setText(await ai.narrate(insights.map((i) => ({ title: i.title, body: i.body }))));
+              setText(await ai.narrate(insights.map((i) => ({ title: i.title, body: i.body, tone: i.tone })), 'brifing'));
             } catch (e) {
               setText(`⚠️ ${e instanceof Error ? e.message : 'Brifing oluşturulamadı'}`);
             } finally {

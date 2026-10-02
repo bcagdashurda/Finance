@@ -480,7 +480,7 @@ function Verdict({ data }: { data: StoryData }) {
             onClick={async () => {
               setBusy(true);
               try {
-                setText(await ai.narrate(facts));
+                setText(await ai.narrate(facts, 'ay'));
               } finally {
                 setBusy(false);
               }
