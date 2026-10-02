@@ -1,8 +1,8 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { Masker } from './masking';
 import { categorizeBatch, draftReminder as draftReminderFn, narrateInsights, parseEntryAI, plainText } from './features';
-import { assistantPrompt, entryPrompt, todayLine } from './prompts';
-import { runTool } from './tools';
+import { assistantPrompt, categorizePrompt, entryPrompt, narratePrompt, reminderPrompt, todayLine } from './prompts';
+import { runTool, TOOLS } from './tools';
 import { demoFinance, testAiConfig as baseConfig } from '@/test/demoFinance';
 
 afterEach(() => vi.unstubAllGlobals());
@@ -53,6 +53,17 @@ describe('Masker: ekstre ve günlük yazımda adlar gizlenir', () => {
 describe('istemler', () => {
   it('bugünü haftanın günüyle verir (“geçen cuma” için)', () => {
     expect(todayLine('2026-10-03')).toBe('Bugün: 3 Ekim 2026, Cumartesi (2026-10-03).');
+  });
+
+  it('istemler sessizce şişmez (ücretsiz katmanın token sınırı; ölçüm: 2026-10-03 + %10 pay)', () => {
+    // Bu sınırı aşan bir değişiklik, gerçek değerlendirmede (prompts.eval.test.ts) kazandırdığını göstermeli
+    const t = '2026-10-03';
+    expect(entryPrompt({ contacts: [], incomeCategories: [], expenseCategories: [], accounts: [], today: t }).length).toBeLessThanOrEqual(3000);
+    expect(categorizePrompt({ incomeCategories: [], expenseCategories: [], contacts: [] }).length).toBeLessThanOrEqual(2170);
+    expect(reminderPrompt({ tone: 'kararli', maxDaysLate: 12, habit: null }).length).toBeLessThanOrEqual(1640);
+    for (const k of ['brifing', 'rapor', 'ay'] as const) expect(narratePrompt(k).length).toBeLessThanOrEqual(1340);
+    expect(assistantPrompt({ business: 'X', today: t }).length).toBeLessThanOrEqual(2090);
+    expect(JSON.stringify(TOOLS).length).toBeLessThanOrEqual(4520);
   });
 
   it('değişmeyen talimatlar başta, liste ve tarih sonda (önbellek dostu)', () => {

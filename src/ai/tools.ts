@@ -38,7 +38,7 @@ export const TOOLS: ToolDef[] = [
     type: 'function',
     function: {
       name: 'get_upcoming',
-      description: "Önümüzdeki N gündeki beklenen tahsilat ve ödemeler. 'tarih' carinin geçmiş gecikme alışkanlığına göre paranın beklendiği gün, 'vade' belgedeki gündür.",
+      description: "Önümüzdeki N gündeki beklenen tahsilat ve ödemeler. 'tarih' carinin geçmiş gecikme alışkanlığına göre paranın beklendiği gün; 'vade' (yalnızca farklıysa) belgedeki gündür.",
       parameters: {
         type: 'object',
         properties: { days: { type: 'integer', minimum: 1, maximum: 120 }, direction: { type: 'string', enum: ['in', 'out', 'all'] } },
@@ -211,7 +211,15 @@ export function runTool(name: string, argsJson: string, f: Finance, m: Masker): 
       return r.items
         .filter((i) => i.source !== 'runrate' && i.expected <= to && (dir === 'all' || i.direction === dir))
         .slice(0, 25)
-        .map((i) => ({ tarih: i.expected, vade: i.dueDate, yon: i.direction === 'in' ? 'giris' : 'cikis', cari: cname(i.contactId), aciklama: i.label, tutar: tl(i.expectedAmount), kaynak: i.source }));
+        // Sonuç sonraki her adımda yeniden gönderilir: vade yalnızca beklenen günden farklıysa yazılır
+        .map((i) => ({
+          tarih: i.expected,
+          ...(i.dueDate && i.dueDate !== i.expected ? { vade: i.dueDate } : {}),
+          yon: i.direction === 'in' ? 'giris' : 'cikis',
+          cari: cname(i.contactId),
+          aciklama: i.label,
+          tutar: tl(i.expectedAmount),
+        }));
     }
     case 'get_overdue': {
       const dir = args.direction === 'payable' ? 'payable' : 'receivable';

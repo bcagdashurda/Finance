@@ -312,4 +312,19 @@ CPU profili: sürenin çoğu JavaScript değil (uygulama + React ~100–200 ms),
 Testler: birim 12 yeni (ad gizleme 4, istem yapısı 2, yanıt doğrulama ve IBAN 4, arama 1, Markdown 1); kategori yön koruması bilerek bozulunca 2 test kırmızıya düştü. Uçtan uca: güvenlik notu (bağlı değil/bağlı, masaüstü ve telefon; anahtarın açık hâli sayfada görünmüyor).
 **Gerçek yanıt ölçümü hazır, henüz koşulmadı:** `src/ai/prompts.eval.test.ts` — 15 kayıt cümlesi ve 15 ekstre satırı, beklenen yanıtlarıyla; adlar açık ve gizli; eşik %85 alan doğruluğu ve sıfır yanlış yönlü kategori. Anahtar girildiğinde ilk iş bu koşulacak; istemler buna göre ayarlanacak.
 
+**"Senior prompt engineer" yöntemiyle ölçüm (anahtarsız yapılabilen kısım):**
+
+| İstem (örnek işletmeyle; aracın tahmini token sayısı) | Eski | Yeni | Tekrar eden ifade |
+|---|---|---|---|
+| Kayıt | 348 token | 911 (ilk sürüm 1.080; sıkılaştırıldı) | 6 → 0 |
+| Ekstre (her 25 satırda) | 267 | 692 (ilk 765) | 0 |
+| Asistan (her adımda) | 124 | 476 | 0 |
+| Hatırlatma / özet | 57 / 54 | 368 / 303 | 0 |
+
+- Becerinin yapısal kapısı (yeni istem ≤ eskinin 1,1 katı) **bilerek geçilmiyor**: eklenen kısım istenen anlam çerçevesi. Becerinin kuralına göre asıl karar gerçek değerlendirmede verilecek: yeni istem doğrulukta eskiyi geçmeli, eskinin doğru yaptığı hiçbir durumu bozmamalı. Bunun için değerlendirme, eski istemle aynı sette yan yana koşulabilir ve gerçek token kullanımını (önbellekten gelen dahil) servis yanıtından okuyup `docs/qa/ai-eval/` altına durum durum yazar. Düzenek sahte anahtarla denendi: istek Groq'a ulaştı, Türkçe "anahtar geçersiz" döndü, sonuç dosyası yazıldı.
+- Aracın Türkçe metinde netlik/yapı puanı anlamsız (İngilizce sözcük listesine bakıyor); önerileri ("İngilizce JSON talimatı ekle", "örnek ekle", "rol ekle") becerinin kendi kurallarıyla çeliştiği için uygulanmadı: çıktı biçimi sağlayıcının şema zorlamasıyla garanti ediliyor, örnek ve rol ölçüm gerektirmedikçe eklenmiyor.
+- Asistan yapılandırma denetimi **geçti**: 9 araç, en çok 5 adım, döngü riski yok. En büyük bağlam yükü "yaklaşan kalemler" sonucuydu (sonraki her adımda yeniden gidiyor): kullanılmayan alan atılıp vade yalnızca farklıysa yazılarak 4.050 → 3.217 karakter.
+- İstemlerin sessizce şişmemesi için birim testi eklendi (bugünkü boyut + %10); aşan değişiklik, gerçek değerlendirmede kazandırdığını göstermeli.
+- Ortam notu (uygulama hatası değil): Vitest, Windows'ta çalışma klasörü küçük sürücü harfiyle ("c:\…") verilince hiç test bulamıyor; bu yalnızca Claude Code'un başlattığı kabukta oluyor, PowerShell ve Git Bash yolu "C:" yapıyor.
+
 Ekran: `anahtar-guvenligi.png`, `bagli.png` (test çıktıları)

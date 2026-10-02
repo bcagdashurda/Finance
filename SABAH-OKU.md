@@ -25,7 +25,7 @@ Bekleyen: **S15 yapay zekâ** ve **S16 bulut eşitleme** senaryoları — bir Gr
 ```
 $env:MIZAN_AI_EVAL_KEY="gsk_..."; npx vitest run src/ai/prompts.eval.test.ts
 ```
-Her durumu adlar açık ve gizli iki kez çalıştırır, alan alan doğruluk yüzdesini yazar; geçme eşiği %85. İstemlerin kendisi `src/ai/prompts.ts` dosyasında, açıklamalarıyla birlikte.
+Her durumu adlar açık ve gizli iki kez çalıştırır, alan alan doğruluk yüzdesini ve gerçek token kullanımını yazar (`docs/qa/ai-eval/`); geçme eşiği %85. Eski istemle yan yana karşılaştırmanın komutları dosyanın başında. İstemlerin kendisi `src/ai/prompts.ts` dosyasında, açıklamalarıyla birlikte.
 
 ## 4. Sizden beklenen kararlar
 1. **"Sade mod"** eklensin mi? Esnaf ve serbest çalışanlar için kurulumda seçilen, çek/senet, KDV ve senaryoları gizleyen basit görünüm (yaklaşık 1 günlük iş).

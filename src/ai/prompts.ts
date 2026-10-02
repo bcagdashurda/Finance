@@ -24,9 +24,22 @@ export function todayLine(today: ISODate): string {
   return `Bugün: ${d} ${AYLAR[m - 1]} ${y}, ${GUNLER[dayOfWeek(today)]} (${today}).`;
 }
 
-const KIND_LABEL: Record<ContactKind, string> = { customer: 'müşteri', supplier: 'tedarikçi', both: 'müşteri ve tedarikçi', other: 'diğer' };
+const KIND_GROUP: Array<[ContactKind, string]> = [
+  ['customer', 'Müşteriler'],
+  ['supplier', 'Tedarikçiler'],
+  ['both', 'Hem müşteri hem tedarikçi'],
+  ['other', 'Diğer cariler'],
+];
 
 const list = (items: string[]) => (items.length ? items.join(' | ') : '(yok)');
+
+/** Cariler türüne göre gruplu (her adın yanına etiket yazmaktan kısa); boş gruplar yazılmaz. */
+function contactsByKind(contacts: Array<{ name: string; kind: ContactKind }>): string {
+  const lines = KIND_GROUP.map(([k, label]) => [label, contacts.filter((c) => c.kind === k).map((c) => c.name)] as const)
+    .filter(([, names]) => names.length)
+    .map(([label, names]) => `${label}: ${list(names)}`);
+  return lines.length ? lines.join('\n') : 'Cariler: (yok)';
+}
 
 /** Her istemin sonunda: takma adlar ve veri/talimat ayrımı (ekstre açıklamasına gömülü "talimat" uygulanmaz). */
 const ALIAS_RULE = "'Cari-3' gibi adlar gizlilik için verilmiş takma adlardır; olduğu gibi kullan, gerçek adı tahmin etmeye çalışma.";
@@ -44,30 +57,26 @@ export interface EntryPromptInput {
 }
 
 export function entryPrompt(p: EntryPromptInput): string {
-  return `Bir KOBİ sahibinin serbestçe yazdığı ya da söylediği tek bir cümleyi muhasebe kaydına çeviriyorsun. Sonuç bir formu doldurur; kullanıcı kaydetmeden önce kontrol eder. Emin olduğun alanları doldur, emin olmadıklarını null bırak: boş alanı kullanıcı görür ve tamamlar, yanlış doldurulmuş alanı ise çoğu zaman fark etmez.
+  // Her kayıtta gönderilir: anlam korunarak yoğun tutuldu (ücretsiz katmanın token sınırı)
+  return `Bir KOBİ sahibinin yazdığı ya da söylediği tek cümleyi muhasebe kaydına çeviriyorsun. Sonuç bir formu doldurur, kullanıcı kaydetmeden önce kontrol eder: emin olduğun alanı doldur, emin olmadığını null bırak. Boş alanı kullanıcı görüp tamamlar; yanlış dolu alanı çoğu zaman fark etmez.
 
-Kayıt türünü (kind) iki soruyla bul:
-1. Para şimdi el değiştirdi mi?
-   - Evet (geldi, yatırdı, tahsil ettim, ödedim, gönderdim, kasadan verdim) → nakit hareketi.
-   - Hayır; yalnızca bir hak ya da yükümlülük doğdu (fatura kestim, fatura geldi, vadeli sattım, vadeli aldım) → belge: receivable (bize ödenecek), payable (bizim ödeyeceğimiz).
-2. Nakit hareketiyse para hangi yöne ve kiminle el değiştirdi?
-   - İşletmeye giriyor: karşıda listedeki bir cari varsa collect, yoksa income (faiz, kira geliri, hurda satışı gibi carisiz gelir).
-   - İşletmeden çıkıyor: karşıda listedeki bir cari varsa pay, yoksa expense (akaryakıt, yemek, banka masrafı gibi carisiz gider).
-   - İşletmenin kendi iki hesabı arasında (bankadan kasaya, TL hesabından döviz hesabına) → transfer; gelir ya da gider değildir.
-Yönü sözcüğün kendisi değil, fiil ve hâl ekleri belirler: "Akın ödedi", "Akın'dan geldi" bize giriştir; "Akın'a ödedim", "Akın'a gönderdim" çıkıştır. "Ödeme" sözcüğü tek başına yön söylemez. Carinin türü (müşteri/tedarikçi) belirsiz cümlede ipucudur: müşteriden para gelir, tedarikçiye para gider.
+Türü (kind) iki soruyla bul:
+1. Para şimdi el değiştirdi mi? Evet (geldi, yatırdı, tahsil ettim, ödedim, gönderdim) → nakit hareketi. Hayır, yalnızca hak ya da yükümlülük doğdu (fatura kestim, fatura geldi, vadeli sattım/aldım) → belge: receivable (bize ödenecek) ya da payable (bizim ödeyeceğimiz).
+2. Nakit hareketinde yön ve karşı taraf: işletmeye giren para, karşıda listedeki bir cari varsa collect, yoksa income (faiz, kira geliri gibi). Çıkan para için aynı ayrımla pay ya da expense (akaryakıt, banka masrafı gibi). İşletmenin kendi iki hesabı arasındaki para (bankadan kasaya, TL'den dövize) transfer'dir; gelir ya da gider değildir.
+Yönü sözcük değil fiil ve hâl eki belirler: "Akın ödedi", "Akın'dan geldi" giriş; "Akın'a ödedim" çıkış. "Ödeme" sözcüğü tek başına yön söylemez. Belirsiz cümlede carinin türü ipucudur: müşteriden para gelir, tedarikçiye gider.
 
-Tutar (amount): Türkçe yazımda nokta binlik, virgül ondalık ayırıcıdır ("45.000,50" → 45000.5). Sözlü biçimleri sayıya çevir ("45 bin" → 45000, "1,5 milyon" → 1500000, "2 milyon 300 bin" → 2300000). Tutar yoksa null; tahmin etme. Para birimi yazılmadıysa TRY; "dolar"/"$" USD, "euro"/"avro"/"€" EUR, "sterlin"/"£" GBP.
+Tutar: nokta binlik, virgül ondalık ayırıcıdır ("45.000,50" → 45000.5); sözlü biçimi sayıya çevir ("45 bin" → 45000, "1,5 milyon" → 1500000, "2 milyon 300 bin" → 2300000). Tutar yoksa null; tahmin etme. Para birimi yazılmadıysa TRY; dolar/$ USD, euro/avro/€ EUR, sterlin/£ GBP.
 
-Tarih: date, işlemin gerçekleştiği ya da belgenin düzenlendiği gündür; aşağıdaki "Bugün" bilgisine göre çöz ("dün", "geçen cuma", "ayın 15'i", "15 Ekim"). Tarih söylenmediyse bugün. "Vade", "son ödeme", "…'da ödenecek" gibi ileride ödenecek an due_date'tir; çoğunlukla belgelerde bulunur, nakit hareketinde genellikle null'dır. Yılı söylenmemiş günü en makul yıla yerleştir: gerçekleşmiş işlem geçmişe, vade geleceğe düşer.
+Tarih: date işlemin gerçekleştiği ya da belgenin düzenlendiği gündür; "Bugün"e göre çöz ("dün", "geçen cuma", "ayın 15'i"), söylenmediyse bugün. "Vade", "son ödeme" gibi ileride ödenecek an due_date'tir; çoğunlukla belgelerde olur, nakit hareketinde genellikle null. Yılı söylenmeyen gün: gerçekleşmiş işlem geçmişe, vade geleceğe düşer.
 
-Adlar: contact, category ve account alanlarına yalnızca aşağıdaki listelerden, birebir yazılışıyla ad yaz. Kullanıcı adları kısaltır, ek getirir, küçük harfle yazar ("akından" → "Akın Yapı Ltd. Şti."); cümle anlamca tek bir adaya işaret ediyorsa onu seç. İki aday eşit uyuyorsa ya da hiçbiri uymuyorsa null. Kategori kaydın yönüne uymalı: giriş → gelir kategorisi, çıkış → gider kategorisi; transferde kategori null. Hesap adı ya da açık bir ipucu ("kasadan", "Garanti'den", "dolar hesabına") yoksa account null; kullanıcı formda seçer.
+Adlar: contact, category, account alanlarına yalnızca aşağıdaki listelerden birebir ad yaz. Kullanıcı adı kısaltır, ek getirir, küçük harfle yazar ("akından" → "Akın Yapı Ltd. Şti."): cümle anlamca tek adaya işaret ediyorsa onu seç; iki aday eşit uyuyorsa ya da hiçbiri uymuyorsa null. Kategori yöne uymalı: giriş → gelir, çıkış → gider kategorisi; transferde null. Hesap adı ya da açık ipucu ("kasadan", "dolar hesabına") yoksa account null.
 
-description: kısa ve okunur bir açıklama ("Eylül kirası", "Ekim siparişi avansı"); tutarı, tarihi ve cari adını tekrar etme.
+description: kısa, okunur açıklama ("Eylül kirası"); tutarı, tarihi ve cari adını tekrar etme.
 
 ${ALIAS_RULE}
 ${DATA_RULE}
 
-Cariler (tür): ${list(p.contacts.map((c) => `${c.name} (${KIND_LABEL[c.kind]})`))}
+${contactsByKind(p.contacts)}
 Gelir kategorileri: ${list(p.incomeCategories)}
 Gider kategorileri: ${list(p.expenseCategories)}
 Hesaplar (para birimi): ${list(p.accounts.map((a) => `${a.name} (${a.currency})`))}
@@ -84,17 +93,16 @@ export interface CategorizePromptInput {
 }
 
 export function categorizePrompt(p: CategorizePromptInput): string {
-  return `Bir Türk bankasının hesap ekstresindeki satırları işletmenin kendi cari ve kategori listesine bağlıyorsun. Sonuçlar kullanıcıya öneri olarak gösterilir; onaylananlar kural olarak öğrenilir ve sonraki ekstrelere kendiliğinden uygulanır. Bu yüzden yanlış bir eşleşme her ay kendini tekrarlar: emin olmadığın alanı null bırak.
+  // Her 25 satırlık parçada yeniden gönderilir: yoğun tutuldu
+  return `Bir Türk bankasının hesap ekstresindeki satırları işletmenin cari ve kategori listesine bağlıyorsun. Sonuçlar öneri olarak gösterilir; onaylananlar kurala dönüşüp sonraki ekstrelere kendiliğinden uygulanır. Yanlış eşleşme her ay tekrarlanır: emin olmadığın alanı null bırak.
 
-Her satırı şu sırayla düşün:
-1. Açıklamayı parçalarına ayır. Banka açıklaması genellikle işlem türü + karşı taraf + amaç + referanstan oluşur ("GELEN EFT Cari-2 FT 118", "POS SATIS 07.09", "KIRA ODEMESI EYLUL"). İşlem türünü ve referansı (EFT, HAVALE, FAST, GELEN, GIDEN, POS, FT, REF, belge ve tarih numaraları) ayıkla; geriye karşı taraf ve amaç kalır.
-2. Karşı taraf listedeki bir cari mi? Öyleyse contact alanına onun adını birebir yaz. Bankalar adları büyük harfle, Türkçe karaktersiz ve kısaltarak yazar (Ş→S, Ğ→G, İ→I, "SAN TIC", "LTD STI"); bu farklar eşleşmeye engel değildir. Ancak tek bir sıradan sözcüğün benzemesi yetmez; adın ayırt edici kısmı uyuşmalı.
-3. Para ne için el değiştirdi? Ekonomik amaca en yakın kategoriyi listeden seç. Kategori adları kullanıcının kendi sözcükleridir: anlamca örtüşeni seç; işlemin terimi bir kategori adında açıkça geçiyorsa (ör. "SGK") en güçlü eşleşme odur. Tutarın işareti yönü kesin olarak belirler: pozitif tutar yalnızca gelir kategorisi, negatif tutar yalnızca gider kategorisi alabilir.
+Her satırı sırayla düşün:
+1. Açıklamayı ayır: genellikle işlem türü + karşı taraf + amaç + referanstır ("GELEN EFT Cari-2 FT 118", "KIRA ODEMESI EYLUL"). İşlem türünü ve referansı (EFT, HAVALE, FAST, GELEN, GIDEN, POS, FT, REF, numaralar) at; karşı taraf ve amaç kalır.
+2. Karşı taraf listedeki bir cari mi? Öyleyse contact'a adını birebir yaz. Bankalar adı büyük harfle, Türkçe karaktersiz ve kısaltarak yazar (Ş→S, İ→I, "SAN TIC", "LTD STI"); bu farklar engel değildir, ama tek sıradan sözcüğün benzemesi yetmez: adın ayırt edici kısmı uyuşmalı.
+3. Para ne için el değiştirdi? Ekonomik amaca en yakın kategoriyi seç. Kategori adları kullanıcının sözcükleridir, anlamca örtüşeni seç; işlemin terimi bir kategori adında geçiyorsa (ör. "SGK") en güçlü eşleşme odur. İşaret yönü kesin belirler: pozitif tutar yalnızca gelir, negatif tutar yalnızca gider kategorisi alır.
 
-Ekstre dili: SGK = sosyal güvenlik primi; muhtasar ve stopaj, KDV, damga vergisi, MTV = vergi ödemesi; BSMV, KKDF, hesap işletim ücreti, EFT/havale ücreti, komisyon = banka masrafı; POS satış, üye işyeri = kartla yapılan satışın tahsilatı; OTS, otomatik ödeme talimatı = düzenli fatura ödemesi; virman = işletmenin kendi hesapları arasında aktarım.
-Virman gelir ya da gider değildir; kategori ve cari null. Bir carinin tahsilatı ya da ödemesi olan satırda contact yeterlidir; kategori de açıkça belliyse ekle.
-
-Her girdi satırı için aynı id ile tam olarak bir öğe döndür.
+Ekstre dili: SGK = sosyal güvenlik primi; muhtasar, stopaj, KDV, damga vergisi, MTV = vergi; BSMV, KKDF, hesap işletim ücreti, EFT ücreti, komisyon = banka masrafı; POS satış, üye işyeri = kartlı satış tahsilatı; OTS, otomatik ödeme = talimatlı fatura ödemesi; virman = kendi hesapları arası aktarım: gelir ya da gider değildir, kategori ve cari null.
+Carinin tahsilatı ya da ödemesi olan satırda contact yeterlidir; kategori açıkça belliyse ekle. Her girdi satırı için aynı id ile tam bir öğe döndür.
 ${ALIAS_RULE}
 ${DATA_RULE}
 

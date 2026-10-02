@@ -6,15 +6,28 @@
  *
  * Sağlayıcı anahtardan tanınır (gsk_ → Groq, AIza → Gemini). Her durum hem adlar açık hem gizli çalışır.
  * Ölçüt: alan bazında doğruluk ≥ %85 ve yanlış yöndeki kategori sıfır.
+ * Her durumun sonucu ve gerçek token kullanımı docs/qa/ai-eval/<etiket>-<sağlayıcı>.json'a yazılır.
+ *
+ * Eski istemle karşılaştırma (gerilemesizlik kuralı: yeni istem, eskinin doğru yaptığını bozmamalı):
+ *   git checkout 83849fd -- src/ai/features.ts src/ai/masking.ts
+ *   $env:MIZAN_AI_EVAL_LABEL="eski"; npx vitest run src/ai/prompts.eval.test.ts
+ *   git checkout HEAD -- src/ai/features.ts src/ai/masking.ts
+ *   (parseEntryAI ve categorizeBatch'in imzası iki sürümde aynı.)
  */
-import { describe, expect, it } from 'vitest';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { categorizeBatch, parseEntryAI } from './features';
 import { detectProvider, withProvider, type AiConfig } from './config';
 import { demoFinance, testAiConfig } from '@/test/demoFinance';
 import type { EntryKind } from '@/domain/nlp';
 
-const KEY = (globalThis as { process?: { env: Record<string, string | undefined> } }).process?.env.MIZAN_AI_EVAL_KEY ?? '';
+const KEY = process.env.MIZAN_AI_EVAL_KEY ?? '';
+const LABEL = process.env.MIZAN_AI_EVAL_LABEL ?? 'yeni';
 const provider = detectProvider(KEY);
+
+/** Servisin yanıtındaki gerçek token sayımı (önbellekten gelenler ayrı). */
+const usage = { calls: 0, prompt: 0, completion: 0, cached: 0 };
+const report: Record<string, unknown> = {};
 
 interface EntryCase {
   text: string;
@@ -73,7 +86,39 @@ const LINES: LineCase[] = [
 
 const oneOf = <T,>(expected: T | T[], got: T) => (Array.isArray(expected) ? expected.includes(got) : expected === got);
 
-describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'})`, () => {
+function takeUsage() {
+  const u = { ...usage };
+  Object.assign(usage, { calls: 0, prompt: 0, completion: 0, cached: 0 });
+  return u;
+}
+
+describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'}, ${LABEL})`, () => {
+  const realFetch = globalThis.fetch;
+  beforeAll(() => {
+    globalThis.fetch = async (...args: Parameters<typeof fetch>) => {
+      const res = await realFetch(...args);
+      try {
+        const u = (await res.clone().json())?.usage;
+        if (u) {
+          usage.calls++;
+          usage.prompt += u.prompt_tokens ?? 0;
+          usage.completion += u.completion_tokens ?? 0;
+          usage.cached += u.prompt_tokens_details?.cached_tokens ?? 0;
+        }
+      } catch {
+        // gövde JSON değilse sayma
+      }
+      return res;
+    };
+  });
+  afterAll(() => {
+    globalThis.fetch = realFetch;
+    mkdirSync('docs/qa/ai-eval', { recursive: true });
+    const file = `docs/qa/ai-eval/${LABEL}-${provider}.json`;
+    writeFileSync(file, JSON.stringify({ label: LABEL, provider, date: new Date().toISOString(), ...report }, null, 2));
+    console.log(`\nSonuçlar: ${file}`);
+  });
+
   for (const mask of [false, true]) {
     const config: AiConfig = { ...withProvider({ ...testAiConfig, apiKey: KEY }, provider ?? 'groq'), maskNames: mask };
     const f = demoFinance(undefined, config);
@@ -84,6 +129,8 @@ describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'}
       let ok = 0;
       let total = 0;
       const rows: string[] = [];
+      const cases: unknown[] = [];
+      takeUsage();
       for (const c of ENTRY) {
         const r = await parseEntryAI(c.text, f, config);
         const checks: Array<[string, boolean]> = [['tür', oneOf(c.kind, r.kind)]];
@@ -96,19 +143,26 @@ describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'}
         ok += checks.filter(([, v]) => v).length;
         total += checks.length;
         const miss = checks.filter(([, v]) => !v).map(([k]) => k);
-        rows.push(`${miss.length ? '✗' : '✓'} ${c.text}${miss.length ? `  → yanlış: ${miss.join(', ')} (${r.kind}, ${r.amount}, ${contactName(r.contactId)}, ${categoryName(r.categoryId)}, ${r.date}, ${r.dueDate ?? '-'})` : ''}`);
+        const got = { kind: r.kind, amount: r.amount, currency: r.currency, date: r.date, due: r.dueDate ?? null, contact: contactName(r.contactId), category: categoryName(r.categoryId) };
+        cases.push({ text: c.text, pass: !miss.length, wrong: miss, got });
+        rows.push(`${miss.length ? '✗' : '✓'} ${c.text}${miss.length ? `  → yanlış: ${miss.join(', ')} (${Object.values(got).join(', ')})` : ''}`);
       }
-      console.log(`\nKayıt (${mask ? 'gizli' : 'açık'}): ${ok}/${total} alan doğru (%${Math.round((ok / total) * 100)})\n${rows.join('\n')}`);
+      const u = takeUsage();
+      report[`kayit-${mask ? 'gizli' : 'acik'}`] = { score: ok / total, ok, total, usage: u, cases };
+      console.log(`\nKayıt (${mask ? 'gizli' : 'açık'}): ${ok}/${total} alan doğru (%${Math.round((ok / total) * 100)}) · ${u.calls} çağrı, ${u.prompt} istem + ${u.completion} yanıt token (${u.cached} önbellekten)\n${rows.join('\n')}`);
       expect(ok / total).toBeGreaterThanOrEqual(0.85);
     }, 240_000);
 
     it(`ekstre sınıflandırma — adlar ${mask ? 'gizli' : 'açık'}`, async () => {
       const lines = LINES.map((l, i) => ({ id: i + 1, description: l.description, amount: Math.round(l.amount * 100) }));
+      takeUsage();
       const out = await categorizeBatch(lines, f, config);
+      const u = takeUsage();
       let ok = 0;
       let total = 0;
       let wrongSide = 0;
       const rows: string[] = [];
+      const cases: unknown[] = [];
       LINES.forEach((l, i) => {
         const hit = out.get(i + 1);
         const checks: Array<[string, boolean]> = [];
@@ -119,9 +173,11 @@ describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'}
         ok += checks.filter(([, v]) => v).length;
         total += checks.length;
         const miss = checks.filter(([, v]) => !v).map(([k]) => k);
+        cases.push({ description: l.description, pass: !miss.length, wrong: miss, got: { contact: contactName(hit?.contactId), category: categoryName(hit?.categoryId) } });
         rows.push(`${miss.length ? '✗' : '✓'} ${l.description}${miss.length ? `  → ${contactName(hit?.contactId)} / ${categoryName(hit?.categoryId)}` : ''}`);
       });
-      console.log(`\nEkstre (${mask ? 'gizli' : 'açık'}): ${ok}/${total} alan doğru (%${Math.round((ok / total) * 100)})\n${rows.join('\n')}`);
+      report[`ekstre-${mask ? 'gizli' : 'acik'}`] = { score: ok / total, ok, total, wrongSide, usage: u, cases };
+      console.log(`\nEkstre (${mask ? 'gizli' : 'açık'}): ${ok}/${total} alan doğru (%${Math.round((ok / total) * 100)}) · ${u.calls} çağrı, ${u.prompt} istem + ${u.completion} yanıt token (${u.cached} önbellekten)\n${rows.join('\n')}`);
       expect(wrongSide).toBe(0);
       expect(ok / total).toBeGreaterThanOrEqual(0.85);
     }, 240_000);
