@@ -41,6 +41,9 @@ export const useCloud = create<CloudState>((set) => ({
   set: (patch) => set(patch),
 }));
 
+/** Hesap oturumu: ücretsiz denemenin açtığı kimliksiz oturum hesap sayılmaz (bulut ekranlarında "giriş yapılmamış"). */
+export const accountSession = (s: Session | null): Session | null => (s && !s.user.is_anonymous ? s : null);
+
 export function envCloudConfig(): Pick<CloudConfig, 'url' | 'anonKey'> | null {
   const url = import.meta.env.VITE_SUPABASE_URL as string | undefined;
   const anonKey = import.meta.env.VITE_SUPABASE_ANON_KEY as string | undefined;

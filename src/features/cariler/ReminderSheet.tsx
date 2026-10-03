@@ -11,6 +11,7 @@ import { addDays } from '@/domain/dates';
 import type { Contact } from '@/domain/types';
 import { mailtoLink, reminderText, whatsappLink, type ReminderTone } from './reminder';
 import { useAi } from '@/ai/useAi';
+import { useAiGate } from '@/features/ayarlar/TrialDialog';
 
 export function ReminderSheet({ open, onOpenChange, contact }: { open: boolean; onOpenChange: (o: boolean) => void; contact: Contact }) {
   return (
@@ -23,6 +24,7 @@ export function ReminderSheet({ open, onOpenChange, contact }: { open: boolean; 
 function ReminderComposer({ contact }: { contact: Contact }) {
   const f = useFinance();
   const ai = useAi();
+  const gate = useAiGate();
   const [tone, setTone] = useState<ReminderTone>('nazik');
   const overdue = useMemo(
     () =>
@@ -84,9 +86,9 @@ function ReminderComposer({ contact }: { contact: Contact }) {
             { value: 'kararli', label: 'Kararlı' },
           ]}
         />
-        <Tip content={ai.enabled ? 'Mesajı carinin durumuna göre yeniden yazar' : 'Ayarlar’dan yapay zekâyı açtığınızda kullanılabilir'}>
+        <Tip content={ai.enabled ? 'Mesajı carinin durumuna göre yeniden yazar' : gate.trial ? 'Ücretsiz denemeyle hemen kullanabilirsiniz' : 'Ayarlar’dan yapay zekâyı açtığınızda kullanılabilir'}>
           <span>
-            <Button size="sm" variant="secondary" icon={<Sparkle size={14} weight="duotone" />} onClick={rewrite} loading={rewriting} disabled={!ai.enabled}>
+            <Button size="sm" variant="secondary" icon={<Sparkle size={14} weight="duotone" />} onClick={ai.enabled ? rewrite : gate.open} loading={rewriting}>
               Yapay zekâ ile yeniden yaz
             </Button>
           </span>

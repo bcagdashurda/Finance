@@ -2,12 +2,13 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { useNavigate } from 'react-router';
 import { Dialog as RDialog } from 'radix-ui';
 import { AnimatePresence, motion } from 'motion/react';
-import { ArrowUp, Microphone, Sparkle, Stop, X, LockSimple, Wrench, GearSix } from '@phosphor-icons/react';
+import { ArrowUp, Microphone, Sparkle, Stop, X, LockSimple, Wrench, GearSix, Gift } from '@phosphor-icons/react';
 import { toast } from 'sonner';
 import { useUI } from '@/app/ui-store';
 import { useFinance } from '@/app/finance';
 import { useAi } from '@/ai/useAi';
 import { useRecorder } from '@/ai/useRecorder';
+import { useAiGate } from '@/features/ayarlar/TrialDialog';
 import type { AssistantTurn } from '@/ai/features';
 import { IconButton, Button } from '@/ui/Button';
 import { LogoMark } from '@/ui/Logo';
@@ -82,6 +83,12 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
   const [input, setInput] = useState('');
   const [busy, setBusy] = useState(false);
   const rec = useRecorder();
+  const gate = useAiGate();
+  // Deneme penceresi asistanın üstünde değil, asistan kapanınca açılsın
+  const openGate = () => {
+    onClose();
+    gate.open();
+  };
   const scroller = useRef<HTMLDivElement>(null);
   const abort = useRef<AbortController | null>(null);
 
@@ -97,7 +104,11 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
     const history = turns;
     setTurns((t) => [...t, { role: 'user', content: q }]);
     if (!ai.enabled) {
-      setTurns((t) => [...t, { role: 'assistant', content: offlineAnswer ?? 'Serbest soruları yanıtlayabilmem için Ayarlar › Yapay zekâ’dan ücretsiz bir Groq ya da Gemini anahtarı bağlamanız gerekiyor. Hazır sorular cihazınızda yanıtlanır.', tools: offlineAnswer ? ['Cihazda hesaplandı'] : [] }]);
+      const need = gate.trial
+        ? 'Serbest soruları yanıtlayabilmem için yapay zekâ gerekli. “Ücretsiz dene” ile anahtar almadan hemen açabilirsiniz. Hazır sorular cihazınızda yanıtlanır.'
+        : 'Serbest soruları yanıtlayabilmem için Ayarlar › Yapay zekâ’dan ücretsiz bir Groq ya da Gemini anahtarı bağlamanız gerekiyor. Hazır sorular cihazınızda yanıtlanır.';
+      setTurns((t) => [...t, { role: 'assistant', content: offlineAnswer ?? need, tools: offlineAnswer ? ['Cihazda hesaplandı'] : [] }]);
+      if (!offlineAnswer) toast('Serbest soru yapay zekâyla yanıtlanır', { description: gate.hint, action: { label: gate.label, onClick: openGate } });
       return;
     }
     setBusy(true);
@@ -115,7 +126,7 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
 
   async function toggleMic() {
     if (!ai.enabled) {
-      toast('Sesle soru için Ayarlar › Yapay zekâ’dan ücretsiz bir anahtar bağlayın');
+      toast('Sesle soru yapay zekâyla çalışır', { description: gate.hint, action: { label: gate.label, onClick: openGate } });
       return;
     }
     try {
@@ -177,11 +188,16 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
             </div>
             {!ai.enabled && (
               <div className="mt-6 rounded-[16px] bg-sunken p-4 text-xs text-muted">
-                Serbest soru, sesle soru ve senaryo yorumu için ücretsiz yapay zekâyı açın.
+                Serbest soru, sesle soru ve senaryo yorumu için yapay zekâyı açın.{gate.trial && ' Anahtar almadan hemen deneyebilirsiniz.'}
+                {gate.trial && (
+                  <Button size="sm" variant="primary" className="mt-3 w-full" icon={<Gift size={14} />} onClick={openGate}>
+                    Ücretsiz dene
+                  </Button>
+                )}
                 <Button
                   size="sm"
                   variant="secondary"
-                  className="mt-3 w-full"
+                  className={gate.trial ? 'mt-2 w-full' : 'mt-3 w-full'}
                   icon={<GearSix size={14} />}
                   onClick={() => {
                     onClose();

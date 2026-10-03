@@ -2,7 +2,10 @@
  * groq / gemini: kullanıcının ücretsiz anahtarı bu cihazda (ikisi de OpenAI uyumlu uç noktayla, tarayıcıdan) ·
  * openai-compatible: özel uç nokta (ör. Ollama) · cloud: Supabase Edge Function (ai-proxy) — anahtar sunucuda.
  */
-export type AiProvider = 'groq' | 'gemini' | 'openai-compatible' | 'cloud';
+export type AiProvider = 'groq' | 'gemini' | 'openai-compatible' | 'cloud' | 'trial';
+
+/** Ücretsiz deneme: aynı sitedeki sunucu işlevi (Vercel api/ai); işletmenin anahtarı orada durur. */
+export const TRIAL_BASE = '/api/ai';
 
 export interface AiConfig {
   enabled: boolean;
@@ -65,6 +68,8 @@ export function isAiReady(c: AiConfig | undefined | null): c is AiConfig {
  * ve Edge Function adresi kullanılır.
  */
 export function effectiveAiConfig(c: AiConfig, cloud: { url: string; accessToken: string } | null): AiConfig | null {
+  // Deneme: anahtar sunucuda; Authorization yalnızca biçim gereği (sunucu kullanmaz)
+  if (c.provider === 'trial') return c.enabled && c.consentAt ? { ...c, baseUrl: TRIAL_BASE, apiKey: 'mizan-deneme' } : null;
   if (c.provider !== 'cloud') return isAiReady(c) ? c : null;
   if (!cloud || !c.enabled || !c.consentAt) return null;
   return { ...c, apiKey: cloud.accessToken, baseUrl: `${cloud.url.replace(/\/$/, '')}/functions/v1/ai-proxy` };

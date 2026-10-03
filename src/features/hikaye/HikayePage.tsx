@@ -4,6 +4,7 @@
  * anlatı, perde (clip) ile açılan çubuklar, iki yandan birleşen kartlar ve
  * kaydırmayla çizilen projeksiyon eğrisi. prefers-reduced-motion'da statik.
  */
+import { toast } from 'sonner';
 import { useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Link } from 'react-router';
 import gsap from 'gsap';
@@ -11,6 +12,7 @@ import { ScrollTrigger } from 'gsap/ScrollTrigger';
 import { ArrowDown, ArrowRight, Printer, Sparkle } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { useAi } from '@/ai/useAi';
+import { useAiGate } from '@/features/ayarlar/TrialDialog';
 import { Segmented } from '@/ui/Segmented';
 import { Button } from '@/ui/Button';
 import { CategoryIcon } from '@/ui/icons';
@@ -453,6 +455,7 @@ function StoryCurve({ points, idPrefix = 'story', className = 'mt-10 h-56 w-full
 
 function Verdict({ data }: { data: StoryData }) {
   const ai = useAi();
+  const gate = useAiGate();
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   const facts = [
@@ -472,15 +475,18 @@ function Verdict({ data }: { data: StoryData }) {
       </p>
       {text && <p className="mx-auto mt-6 max-w-xl whitespace-pre-line text-left text-base leading-relaxed text-ink-2">{text}</p>}
       <div className="no-print mt-8 flex flex-wrap justify-center gap-2">
-        {ai.enabled && (
+        {(ai.enabled || gate.trial) && (
           <Button
             variant="secondary"
             icon={<Sparkle size={16} weight="duotone" />}
             loading={busy}
             onClick={async () => {
+              if (!ai.enabled) return gate.open();
               setBusy(true);
               try {
                 setText(await ai.narrate(facts, 'ay'));
+              } catch (e) {
+                toast.error('Yorum oluşturulamadı', { description: e instanceof Error ? e.message : '' });
               } finally {
                 setBusy(false);
               }

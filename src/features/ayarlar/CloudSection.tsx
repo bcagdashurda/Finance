@@ -7,7 +7,7 @@ import { Button } from '@/ui/Button';
 import { Field, Select, TextInput } from '@/ui/Field';
 import { Badge } from '@/ui/bits';
 import { CloudAuthForm, RemoteWorkspacePicker, Steps } from '@/cloud/ui';
-import { addTeamMember, envCloudConfig, saveCloudConfig, syncNow, useCloud } from '@/cloud/store';
+import { accountSession, addTeamMember, envCloudConfig, saveCloudConfig, syncNow, useCloud } from '@/cloud/store';
 
 /** Bulut kurulumu yapılmış mı? Bağlantı bilgisi yalnızca kurulumu yapan kişinin ayarından (.env) gelir. */
 export function cloudAvailable(saved?: { url?: string; anonKey?: string } | null): boolean {
@@ -21,10 +21,11 @@ export function cloudAvailable(saved?: { url?: string; anonKey?: string } | null
 export function CloudSection({ index }: { index: number }) {
   const f = useFinance();
   const cloud = useCloud();
+  const account = accountSession(cloud.session);
   const cfg = f.settings.cloud;
   const linked = Boolean(cfg?.linked.includes(f.workspace.id));
   if (!cloudAvailable(cfg)) return null;
-  const step = !cloud.session ? 0 : 1;
+  const step = !account ? 0 : 1;
 
   return (
     <Panel reveal={index} id="bulut" className="scroll-mt-24">
@@ -32,7 +33,7 @@ export function CloudSection({ index }: { index: number }) {
         title="Hesap ve eşitleme"
         description={
           <span className="flex flex-wrap items-center gap-2">
-            {linked && cloud.session ? <Badge tone="in" icon={<CheckCircle size={12} />}>Bu işletme eşitleniyor</Badge> : <Badge tone="muted">Yalnızca bu cihaz</Badge>}
+            {linked && account ? <Badge tone="in" icon={<CheckCircle size={12} />}>Bu işletme eşitleniyor</Badge> : <Badge tone="muted">Yalnızca bu cihaz</Badge>}
             Verilerinizi telefon, ofis bilgisayarı ve ekip arkadaşlarınızla güvenle paylaşın.
           </span>
         }
@@ -49,7 +50,7 @@ export function CloudSection({ index }: { index: number }) {
         <div className="space-y-5">
           <div className="flex flex-wrap items-center justify-between gap-3 rounded-[14px] bg-sunken px-4 py-3 text-sm">
             <span>
-              Giriş yapıldı: <strong>{cloud.session?.user.email}</strong>
+              Giriş yapıldı: <strong>{account?.user.email}</strong>
             </span>
             <Button size="sm" variant="ghost" icon={<SignOut size={14} />} onClick={() => void cloud.client?.auth.signOut()}>
               Çıkış yap

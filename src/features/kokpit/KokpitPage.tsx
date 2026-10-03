@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Popover } from 'radix-ui';
 import { useAi } from '@/ai/useAi';
+import { useAiGate } from '@/features/ayarlar/TrialDialog';
 import { Link, useNavigate } from 'react-router';
 import { motion } from 'motion/react';
 import {
@@ -613,10 +614,12 @@ function Kpi({
 /** Yapay zekâ ile sabah brifingi: tespitleri öncelik sırasıyla 3 maddeye indirir. */
 function Briefing({ insights }: { insights: Insight[] }) {
   const ai = useAi();
+  const gate = useAiGate();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  if (!ai.enabled || !insights.length) return null;
+  // Yapay zekâ kapalıyken de görünür (deneme varsa): tıklayınca deneme penceresi açılır
+  if (!insights.length || (!ai.enabled && !gate.trial)) return null;
   return (
     <Popover.Root open={open} onOpenChange={setOpen}>
       <Popover.Trigger asChild>
@@ -625,7 +628,12 @@ function Briefing({ insights }: { insights: Insight[] }) {
           variant="ghost"
           icon={<Sparkle size={14} weight="duotone" className="text-cobalt" />}
           loading={busy}
-          onClick={async () => {
+          onClick={async (e) => {
+            if (!ai.enabled) {
+              e.preventDefault();
+              gate.open();
+              return;
+            }
             if (text) return;
             setBusy(true);
             try {

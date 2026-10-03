@@ -27,6 +27,7 @@ import { useUI } from './ui-store';
 import { CommandPalette } from './CommandPalette';
 import { EntrySheet } from '@/features/entry/EntrySheet';
 import { AssistantDrawer } from '@/features/asistan/AssistantDrawer';
+import { TrialDialog } from '@/features/ayarlar/TrialDialog';
 import { useShortcuts } from './shortcuts';
 import { formatDayMonth } from '@/ui/format';
 import { fetchLatestRates } from '@/data/rates';
@@ -353,6 +354,7 @@ export function AppShell() {
       <CommandPalette />
       <EntrySheet />
       <AssistantDrawer />
+      <TrialDialog />
       <CloudBridge />
     </div>
   );

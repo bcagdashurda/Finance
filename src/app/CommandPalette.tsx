@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { toast } from 'sonner';
 import { useAi } from '@/ai/useAi';
 import { useRecorder } from '@/ai/useRecorder';
+import { useAiGate } from '@/features/ayarlar/TrialDialog';
 import type { ParsedEntry } from '@/domain/nlp';
 import { useNavigate } from 'react-router';
 import { Dialog as RDialog } from 'radix-ui';
@@ -106,6 +107,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
   const [query, setQuery] = useState('');
   const ai = useAi();
   const rec = useRecorder();
+  const gate = useAiGate();
   const [aiParsed, setAiParsed] = useState<{ q: string; entry: ParsedEntry } | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
 
@@ -138,7 +140,16 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 
   async function toggleMic() {
     if (!ai.enabled) {
-      toast('Sesle kayıt için Ayarlar › Yapay zekâ’dan ücretsiz bir anahtar bağlayın');
+      toast('Sesle kayıt yapay zekâyla çalışır', {
+        description: gate.hint,
+        action: {
+          label: gate.label,
+          onClick: () => {
+            onClose();
+            gate.open();
+          },
+        },
+      });
       return;
     }
     try {

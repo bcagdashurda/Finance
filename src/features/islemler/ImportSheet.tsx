@@ -26,6 +26,7 @@ import { planAllocation } from '@/domain/documents';
 import type { ID } from '@/domain/types';
 import { importTransactions, learnRule, type ImportRow } from '@/data/repo';
 import { useAi } from '@/ai/useAi';
+import { useAiGate } from '@/features/ayarlar/TrialDialog';
 import { findHeaderRow, readSpreadsheet } from '@/data/spreadsheet';
 
 const readFile = readSpreadsheet;
@@ -54,6 +55,7 @@ export function ImportSheet({ open, onOpenChange }: { open: boolean; onOpenChang
 function ImportWizard({ onDone }: { onDone: () => void }) {
   const f = useFinance();
   const ai = useAi();
+  const gate = useAiGate();
   const [aiBusy, setAiBusy] = useState(false);
   const [fileName, setFileName] = useState('');
   const [raw, setRaw] = useState<Cell[][] | null>(null);
@@ -326,15 +328,24 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
         <Badge tone="cobalt">{included.length} aktarılacak</Badge>
         {dupCount > 0 && <Badge tone="warn" icon={<Copy size={12} />}>{dupCount} olası mükerrer atlandı</Badge>}
         {unmatched > 0 ? <Badge tone="muted" icon={<WarningCircle size={12} />}>{unmatched} satır kategorisiz</Badge> : <Badge tone="in" icon={<CheckCircle size={12} />}>Hepsi eşleşti</Badge>}
-        <Tip content={ai.enabled ? 'Eşleşmeyen satırları yapay zekâyla sınıflandırır; açıklamalar ve tutarlar gönderilir' : 'Ayarlar’dan yapay zekâyı açtığınızda kullanılabilir'}>
+        <Tip
+          content={
+            ai.enabled
+              ? 'Eşleşmeyen satırları yapay zekâyla sınıflandırır; açıklamalar ve tutarlar gönderilir'
+              : gate.trial
+                ? 'Ücretsiz denemeyle hemen kullanabilirsiniz'
+                : 'Ayarlar’dan yapay zekâyı açtığınızda kullanılabilir'
+          }
+        >
           <span className="ml-auto">
             <Button
               size="sm"
               variant="secondary"
               icon={<Sparkle size={14} weight="duotone" />}
-              disabled={!ai.enabled || unmatched === 0}
+              disabled={unmatched === 0}
               loading={aiBusy}
               onClick={async () => {
+                if (!ai.enabled) return gate.open();
                 const lines = review.filter((r) => r.include && !r.categoryId && !r.contactId).map((r) => ({ id: r.row, description: r.description, amount: r.amount }));
                 setAiBusy(true);
                 try {

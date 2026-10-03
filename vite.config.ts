@@ -1,12 +1,41 @@
 /// <reference types="vitest/config" />
 import { fileURLToPath, URL } from 'node:url';
-import { defineConfig } from 'vite';
+import type { IncomingMessage, ServerResponse } from 'node:http';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
+import trialHandler from './api/ai/[...path]';
+
+/**
+ * Vercel'deki ücretsiz deneme işlevini (api/ai) yerel geliştirme ve önizleme sunucusunda da çalıştırır:
+ * uygulamanın deneme yoklaması yerelde 404 (konsol hatası) almasın, deneme yerelde de denenebilsin.
+ * Anahtar yalnızca kabuk ortamından (GROQ_API_KEY); yoksa deneme "kapalı" görünür.
+ */
+function trialApi(): Plugin {
+  const handle = async (req: IncomingMessage, res: ServerResponse, next: () => void) => {
+    if (!req.url?.startsWith('/api/ai/')) return next();
+    const chunks: Buffer[] = [];
+    for await (const c of req) chunks.push(c as Buffer);
+    const headers = new Headers();
+    for (const [k, v] of Object.entries(req.headers)) for (const x of Array.isArray(v) ? v : v === undefined ? [] : [v]) headers.append(k, x);
+    const response = await trialHandler(
+      new Request(`http://${req.headers.host ?? 'localhost'}${req.url}`, { method: req.method, headers, body: req.method === 'GET' || req.method === 'HEAD' ? undefined : Buffer.concat(chunks) }),
+    );
+    res.statusCode = response.status;
+    response.headers.forEach((v, k) => res.setHeader(k, v));
+    res.end(Buffer.from(await response.arrayBuffer()));
+  };
+  return {
+    name: 'mizan-trial-api',
+    configureServer: (server) => void server.middlewares.use(handle),
+    configurePreviewServer: (server) => void server.middlewares.use(handle),
+  };
+}
 
 export default defineConfig({
   plugins: [
+    trialApi(),
     react(),
     tailwindcss(),
     // Kurulabilir uygulama + çevrimdışı açılış: kabuk ve kod önbellekte, veriler zaten cihazda (IndexedDB)

@@ -67,21 +67,24 @@ Giriş yapan kullanıcının yapay zekâ anahtarı hesabına da kaydedilir (`use
 ## 3. İnternette yayınlamak (isteğe bağlı)
 
 ### 3.1 (İsteğe bağlı) Ücretsiz deneme: yapay zekâyı sizin anahtarınızla sunun
-Kullanıcılar kendi ücretsiz anahtarlarını girebilir (1. bölüm). Anahtar almadan denemeleri için **sizin anahtarınızı** açabilirsiniz. Anahtar tarayıcıya **hiç inmez**, Supabase sunucusunda durur:
-1. Supabase'de **Edge Functions › Deploy a new function › Via Editor** → adı **`ai-proxy`**.
-2. `supabase/functions/ai-proxy/index.ts` dosyasının tamamını yapıştırın → **Deploy**.
-3. **Edge Functions › Secrets › Add new secret:** `GROQ_API_KEY` = `gsk_…` (isteğe bağlı `AI_DAILY_LIMIT` = kişi başı günlük istek, varsayılan 40).
-4. Ortam değişkenlerine (Vercel) `VITE_AI_SERVER=1` ekleyin.
+Kullanıcılar kendi ücretsiz anahtarlarını girebilir (1. bölüm). Anahtar almadan denesinler isterseniz Vercel'de **bir** ortam değişkeni yeter:
+- **`GROQ_API_KEY`** = `gsk_…` (Vercel › Settings › Environment Variables; `VITE_` **olmadan**) → **Redeploy**.
 
-Nasıl çalışır: hesabıyla giriş yapan kullanıcı Ayarlar › Yapay zekâ'da **"Ücretsiz deneme"** kartını görür; verinin nereye gittiğini okuyup **"Denemeyi aç"** der (onay kullanıcıdan alınır, kurulumdan sayılmaz). Kişi başı günlük sınır dolunca "kendi ücretsiz anahtarınızı bağlayın" denir. Kullanıcı kendi anahtarını bağladığı anda o kullanılır; deneme devreden çıkar. Ücretsiz Groq kotası (günde ~1.000 istek) tüm kullanıcılar arasında paylaşılır; sınır tek kişinin tüketmesini önler (sayaç: `ai_usage` tablosu, gün Türkiye saatiyle döner).
+Anahtar sitenin koduna girmez; yalnızca Vercel'deki sunucu işlevinde (`api/ai`) okunur. Uygulama denemenin açık olduğunu kendisi anlar:
+- **Demo işletmede** yapay zekâ kendiliğinden açıktır (örnek veri; onay ya da kayıt gerekmez).
+- **Kullanıcının kendi işletmesinde** kendiliğinden açılmaz: Ayarlar › Yapay zekâ'daki **"Ücretsiz deneme ile aç"** ya da yapay zekâ isteyen her yerdeki **"Ücretsiz dene"** kısayoluyla (sesle kayıt, asistan, ekstre sınıflandırma, hatırlatma, rapor özeti, brifing, aylık hikâye), verinin nereye gittiğini okuyup tek tıkla açar.
+- Kullanıcı kendi anahtarını bağladığı anda o kullanılır.
+- Süre ve kişi başı sınır yoktur; Groq ücretsiz katmanının ortak sınırı (günde ~1.000 istek, dakikada sınırlı) herkes için geçerlidir — dolarsa o gün durur, ertesi gün yenilenir. İşlev yalnızca bu siteden ve uygulamanın kullandığı modellerle çağrılabilir.
+
+*Alternatif (giriş yapmış kullanıcılar, kişi başı günlük sınırla):* Supabase'de `supabase/functions/ai-proxy` işlevini kurup `GROQ_API_KEY` sırrını ekleyin ve Vercel'e `VITE_AI_SERVER=1` yazın (sayaç: `ai_usage`).
 
 ### 3.2 Vercel'e yükleme
 1. Kodu GitHub'a gönderin (`.env.local` gönderilmez; `.gitignore` bunu engeller).
 2. https://vercel.com → **Add New › Project** → depoyu seçin. Ayarlar `vercel.json`'dan otomatik gelir.
 3. **Environment Variables:**
    - `VITE_SUPABASE_URL` ve `VITE_SUPABASE_ANON_KEY` — ekleyin.
-   - `VITE_AI_SERVER=1` — yalnızca 3.1'i yaptıysanız.
-   - `VITE_GROQ_API_KEY` / `VITE_GEMINI_API_KEY` — **eklemeyin** (anahtar herkese görünür olur).
+   - `GROQ_API_KEY` — yalnızca ücretsiz deneme isterseniz (3.1; `VITE_` olmadan).
+   - `VITE_GROQ_API_KEY` / `VITE_GEMINI_API_KEY` — **eklemeyin** (`VITE_` ile başlayan her şey sitenin koduna girer, anahtar herkese görünür olur).
 4. **Deploy** → çıkan adresi Supabase'de 2.2'deki **Site URL** ve **Redirect URLs**'e ekleyin.
 
 Netlify kullanırsanız `public/_redirects` ve `public/_headers` dosyaları aynı ayarları sağlar.

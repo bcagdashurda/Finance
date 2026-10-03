@@ -5,6 +5,7 @@ import { toast } from 'sonner';
 import { DownloadSimple, Printer, Sparkle, Receipt, CurrencyDollar, ChartBar, Table, Clock, Target, Wallet } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { useAi } from '@/ai/useAi';
+import { useAiGate } from '@/features/ayarlar/TrialDialog';
 import { PageHeader } from '@/ui/PageHeader';
 import { Panel, PanelHeader } from '@/ui/Panel';
 import { Segmented } from '@/ui/Segmented';
@@ -191,6 +192,7 @@ export default function RaporlarPage() {
 
 function ExecSummary({ facts }: { facts: Array<{ title: string; body: string }> }) {
   const ai = useAi();
+  const gate = useAiGate();
   const [text, setText] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   return (
@@ -199,14 +201,14 @@ function ExecSummary({ facts }: { facts: Array<{ title: string; body: string }> 
         <div className="flex items-center gap-2 text-sm font-medium text-cobalt-ink">
           <Sparkle size={16} weight="duotone" /> Yönetici özeti
         </div>
-        <Tip content={ai.enabled ? 'Rakamlar cihazda hesaplandı; yapay zekâ yalnızca yorumlar' : 'Ayarlar’dan yapay zekâyı açın'}>
+        <Tip content={ai.enabled ? 'Rakamlar cihazda hesaplandı; yapay zekâ yalnızca yorumlar' : gate.trial ? 'Ücretsiz denemeyle hemen kullanabilirsiniz' : 'Ayarlar’dan yapay zekâyı açın'}>
           <span>
             <Button
               size="sm"
               variant="secondary"
               loading={busy}
-              disabled={!ai.enabled}
               onClick={async () => {
+                if (!ai.enabled) return gate.open();
                 setBusy(true);
                 try {
                   setText(await ai.narrate(facts, 'rapor'));

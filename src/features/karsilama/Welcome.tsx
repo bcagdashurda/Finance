@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from 'react';
 import { motion, useMotionValue, useSpring, useTransform, type MotionValue } from 'motion/react';
 import { toast } from 'sonner';
 import { ArrowRight, LockSimple, Waves, Signature, Microphone, CloudArrowDown } from '@phosphor-icons/react';
-import { ensureClient, envCloudConfig, useCloud } from '@/cloud/store';
+import { accountSession, ensureClient, envCloudConfig, useCloud } from '@/cloud/store';
 import { CloudAuthForm, RemoteWorkspacePicker, Steps } from '@/cloud/ui';
 import { loadDemo, setupWorkspace } from '@/data/load';
 import { LogoMark, Wordmark } from '@/ui/Logo';
@@ -259,7 +259,7 @@ function WelcomeArt({ px, py }: { px: MotionValue<number>; py: MotionValue<numbe
 
 /** İkinci cihaz: hesaba giriş → buluttaki işletmeyi indir. Bağlantı bilgisi kurulumdan (.env) gelir. */
 function CloudConnectModal({ open, onOpenChange }: { open: boolean; onOpenChange: (o: boolean) => void }) {
-  const session = useCloud((s) => s.session);
+  const session = accountSession(useCloud((s) => s.session));
 
   useEffect(() => {
     const env = envCloudConfig();

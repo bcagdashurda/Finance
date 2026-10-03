@@ -1,4 +1,5 @@
-import { useMemo } from 'react';
+import { useEffect, useMemo } from 'react';
+import { demoTrialConfig, useTrial } from './trial';
 import { useFinance } from '@/app/finance';
 import { setSetting } from '@/data/repo';
 import { SETTINGS_KEYS } from '@/data/keys';
@@ -17,7 +18,8 @@ export async function saveAiConfig(current: AiConfig, patch: Partial<AiConfig>):
   // Giriş yapılmışsa hesaba da yaz: anahtar bir kez girilir, diğer cihazlarda hazır gelir.
   // Kaldırılan bağlantı da hesaptan silinir (yoksa sonraki girişte geri yüklenirdi).
   const { client, session } = useCloud.getState();
-  if (client && session && next.consentAt !== 'env') {
+  // Ücretsiz deneme cihaza özeldir: hesaba yazılmaz (hesaptaki kendi anahtarını silmesin); kimliksiz oturumun hesabı yok
+  if (client && session && !session.user.is_anonymous && next.consentAt !== 'env' && next.provider !== 'cloud' && next.provider !== 'trial') {
     const ai = aiForAccount(next);
     if (ai || !next.apiKey) void supabaseUserSettings(client, session.user.id).putAi(ai).catch(() => undefined);
   }
@@ -25,7 +27,10 @@ export async function saveAiConfig(current: AiConfig, patch: Partial<AiConfig>):
 
 export function useAi() {
   const f = useFinance();
-  const config = f.settings.ai;
+  const trialAvail = useTrial((s) => s.available);
+  useEffect(() => useTrial.getState().check(), []);
+  // Demo işletmede kendi anahtarı yoksa ücretsiz deneme kendiliğinden açık
+  const config = useMemo(() => demoTrialConfig(f.settings.ai, Boolean(f.settings.isDemo), trialAvail), [f.settings.ai, f.settings.isDemo, trialAvail]);
   const session = useCloud((s) => s.session);
   const cloudUrl = f.settings.cloud?.url || envCloudConfig()?.url || '';
 

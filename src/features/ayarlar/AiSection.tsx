@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
 import { ChatCircleText, CheckCircle, Gift, GoogleLogo, Lightning, Microphone, PaperPlaneTilt, Question, Receipt, Rows, Sparkle, TextT, Trash } from '@phosphor-icons/react';
-import { useCloud } from '@/cloud/store';
+import { TrialFacts, useAiGate } from './TrialDialog';
 import { useFinance } from '@/app/finance';
 import { useUI } from '@/app/ui-store';
 import { MOD_KEY } from '@/ui/bits';
@@ -86,9 +86,12 @@ export function AiSection({ index }: { index: number }) {
   const f = useFinance();
   const cfg = f.settings.ai;
   const ai = useAi();
-  const session = useCloud((s) => s.session);
-  // Deneme: işletmenin sunucudaki anahtarı (VITE_AI_SERVER=1). Kullanıcı kendi anahtarını bağlayınca o kullanılır.
-  const trial = cfg.provider === 'cloud' && !cfg.apiKey;
+  const gate = useAiGate();
+  // Deneme: işletmenin sunucudaki anahtarı (ai-proxy kuruluysa). Kullanıcı kendi anahtarını bağlayınca o kullanılır.
+  const trial = !cfg.apiKey && (gate.trial || cfg.provider === 'trial');
+  // Demo işletmede kendi anahtarı yoksa deneme kendiliğinden açık (useAi)
+  const demoTrial = Boolean(f.settings.isDemo) && ai.config.provider === 'trial' && cfg.provider !== 'trial';
+  const trialOn = ai.config.provider === 'trial' && ai.enabled;
   const connected = Boolean(cfg.apiKey);
   const [provider, setProvider] = useState<KeyProvider>(cfg.provider === 'gemini' ? 'gemini' : 'groq');
   const [changing, setChanging] = useState(false);
@@ -140,7 +143,7 @@ export function AiSection({ index }: { index: number }) {
     }
   }
 
-  const activeLabel = cfg.provider === 'gemini' ? LABEL.gemini : cfg.provider === 'groq' ? LABEL.groq : cfg.provider === 'cloud' ? 'Ücretsiz deneme' : 'Özel servis';
+  const activeLabel = cfg.provider === 'gemini' ? LABEL.gemini : cfg.provider === 'groq' ? LABEL.groq : cfg.provider === 'trial' ? 'Ücretsiz deneme' : cfg.provider === 'cloud' ? 'İşletme sunucusu' : 'Özel servis';
 
   return (
     <Panel reveal={index} id="yapay-zeka" className="scroll-mt-24">
@@ -157,9 +160,9 @@ export function AiSection({ index }: { index: number }) {
       {!connected || changing ? (
         <div className="space-y-5">
           {trial && !changing && (
-            <TrialCard on={ai.enabled} signedIn={Boolean(session)} onOpen={() => setConsentOpen(true)} onClose={() => void save({ enabled: false })} />
+            <TrialCard on={trialOn} demo={demoTrial} onOpen={gate.open} onClose={() => void save({ provider: 'trial', apiKey: '', enabled: false, consentAt: undefined })} />
           )}
-          {!changing && <AiFeatures connected={trial && ai.enabled} />}
+          {!changing && <AiFeatures connected={trialOn} />}
           {trial && !changing && <div className="text-sm font-semibold text-ink">Sınırsız kullanım: kendi ücretsiz anahtarınızı bağlayın</div>}
           {/* 1. Servis */}
           <fieldset>
@@ -461,38 +464,36 @@ function Advanced({ cfg }: { cfg: AiConfig }) {
 }
 
 /** Deneme yapay zekâsı: işletmenin sunucudaki anahtarı, kişi başı günlük sınırla (kurulum: VITE_AI_SERVER=1). */
-function TrialCard({ on, signedIn, onOpen, onClose }: { on: boolean; signedIn: boolean; onOpen: () => void; onClose: () => void }) {
-  const [u, setU] = useState<AiUsage | null>(getAiUsage);
-  useEffect(() => onAiUsage(setU), []);
+function TrialCard({ on, demo, onOpen, onClose }: { on: boolean; demo: boolean; onOpen: () => void; onClose: () => void }) {
   return (
     <div className="rounded-[16px] border border-cobalt/30 bg-cobalt-soft/40 p-4">
       <div className="flex flex-wrap items-center gap-2">
         <Gift size={18} weight="duotone" className="text-cobalt" />
         <span className="text-sm font-semibold text-ink">Ücretsiz deneme</span>
-        {on && <Badge tone="in">Açık</Badge>}
+        {on && <Badge tone="in">{demo ? 'Demo işletmede açık' : 'Açık'}</Badge>}
       </div>
       <p className="mt-1 text-xs leading-relaxed text-muted">
-        Anahtar almadan hemen deneyin: Mizan’ın ortak yapay zekâsı, kişi başı günlük sınırla. Sınırsız kullanım için aşağıdan kendi ücretsiz anahtarınızı
-        bağlayın; bağladığınız anda o kullanılır.
+        {demo
+          ? 'Demo işletmede yapay zekâ kendiliğinden açık: anahtar almadan her özelliği deneyin. Kendi işletmenizi kurduğunuzda bu kartla tek tıkla açabilir ya da aşağıdan kendi ücretsiz anahtarınızı bağlayabilirsiniz.'
+          : 'Anahtar almadan, hesap açmadan tek tıkla açın: Mizan’ın ortak yapay zekâsı. İsterseniz aşağıdan kendi ücretsiz anahtarınızı bağlayın; bağladığınız anda o kullanılır.'}
       </p>
-      <div className="mt-3 flex flex-wrap items-center gap-3">
-        {!signedIn ? (
-          <a href="#bulut" className="text-sm font-semibold text-cobalt-ink underline-offset-2 hover:underline">
-            Denemek için hesabınızla giriş yapın
-          </a>
-        ) : on ? (
-          <>
-            <span className="text-xs text-ink-2">{u?.trialRemaining != null ? `Bugün kalan hakkınız: ${u.trialRemaining}` : 'Kullandıkça bugün kalan hakkınız burada görünür.'}</span>
+      <details className="group mt-2 text-xs">
+        <summary className="cursor-pointer font-medium text-cobalt-ink">Deneme nedir, sınırları neler?</summary>
+        <TrialFacts className="mt-2 space-y-1.5 leading-relaxed text-ink-2" />
+      </details>
+      {!demo && (
+        <div className="mt-3 flex flex-wrap items-center gap-3">
+          {on ? (
             <Button size="sm" variant="ghost" onClick={onClose}>
               Denemeyi kapat
             </Button>
-          </>
-        ) : (
-          <Button size="sm" variant="primary" onClick={onOpen}>
-            Denemeyi aç
-          </Button>
-        )}
-      </div>
+          ) : (
+            <Button size="sm" variant="primary" icon={<Gift size={14} />} onClick={onOpen}>
+              Ücretsiz deneme ile aç
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

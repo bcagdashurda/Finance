@@ -13,7 +13,7 @@ import { SETTINGS_KEYS } from '@/data/keys';
 import { setActiveWorkspace } from '@/data/repo';
 import { SupabaseRemote } from './remote';
 import { syncWorkspace } from './sync';
-import { listRemoteWorkspaces, saveCloudConfig, useCloud } from './store';
+import { accountSession, listRemoteWorkspaces, saveCloudConfig, useCloud } from './store';
 
 /** Sol menüdeki küçük durum göstergesi. */
 export function CloudStatusBadge({ linked, collapsed }: { linked: boolean; collapsed?: boolean }) {
@@ -125,7 +125,7 @@ export function CloudAuthForm({ onDone }: { onDone?: () => void }) {
 /** Buluttaki işletmeleri listeler; seçileni bu cihaza indirip etkin yapar. */
 export function RemoteWorkspacePicker({ localIds, onDownloaded }: { localIds: string[]; onDownloaded?: () => void }) {
   const client = useCloud((s) => s.client);
-  const session = useCloud((s) => s.session);
+  const session = accountSession(useCloud((s) => s.session));
   const [list, setList] = useState<Array<{ id: string; name: string; updated_at: string }> | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
 

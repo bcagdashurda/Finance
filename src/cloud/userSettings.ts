@@ -16,7 +16,7 @@ export interface UserSettingsRemote {
 
 /** Hesaba yazılacak hâl; kurulum dosyasından gelen ya da boş bağlantı yüklenmez. */
 export function aiForAccount(c: AiConfig): AccountAi | null {
-  if (!c.apiKey || c.consentAt === 'env' || c.provider === 'cloud') return null;
+  if (!c.apiKey || c.consentAt === 'env' || c.provider === 'cloud' || c.provider === 'trial') return null;
   const { provider, apiKey, baseUrl, model, fastModel, sttModel, maskNames, enabled, consentAt, gemini } = c;
   return { provider, apiKey, baseUrl, model, fastModel, sttModel, maskNames, enabled, consentAt, gemini };
 }

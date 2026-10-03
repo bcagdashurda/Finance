@@ -9,7 +9,8 @@
 //   1. Edge Functions › Deploy a new function › Via Editor › adı: ai-proxy › bu dosyayı yapıştırın › Deploy
 //      (ya da: npx supabase functions deploy ai-proxy --use-api --project-ref <ref>)
 //   2. Edge Functions › Secrets:  GROQ_API_KEY = gsk_…   (isteğe bağlı: AI_DAILY_LIMIT = 40)
-//   3. Vercel/.env:  VITE_AI_SERVER=1
+//   3. Authentication › Sign In / Providers › Allow anonymous sign-ins: açık (deneme hesap açmadan çalışır)
+//   Uygulama bu işlevin kurulu olduğunu kendisi anlar; Vercel'de ek ayar gerekmez.
 // =============================================================================
 import { createClient } from 'jsr:@supabase/supabase-js@2';
 
