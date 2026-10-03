@@ -69,6 +69,27 @@ describe('chat client', () => {
     expect(pickModel(['x'], ['y'], /z/)).toBeNull();
   });
 
+  it('deneme hakkı dolunca yeniden denemez, sunucunun Türkçe mesajını gösterir', async () => {
+    const fetchMock = vi.fn(async () =>
+      new Response(JSON.stringify({ error: { message: 'Bugünkü deneme hakkınız doldu (günde 40 istek).' } }), {
+        status: 429,
+        headers: { 'x-mizan-trial': 'exhausted', 'retry-after': '0' },
+      }),
+    );
+    vi.stubGlobal('fetch', fetchMock);
+    await expect(chat(config, { messages: [{ role: 'user', content: 'x' }] })).rejects.toMatchObject({ kind: 'rate', message: 'Bugünkü deneme hakkınız doldu (günde 40 istek).' });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+  });
+
+  it('deneme yapay zekâsında bugün kalan kişisel hakkı okur', async () => {
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ choices: [{ message: { role: 'assistant', content: 'ok' } }] }), { status: 200, headers: { 'x-mizan-trial-remaining': '37' } })),
+    );
+    await chat(config, { messages: [{ role: 'user', content: 'deneme' }] });
+    expect(getAiUsage()?.trialRemaining).toBe(37);
+  });
+
   it('exposes AiError for callers', () => {
     expect(new AiError('rate', 'x').kind).toBe('rate');
   });

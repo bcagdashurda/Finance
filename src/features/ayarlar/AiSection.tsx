@@ -1,7 +1,8 @@
 import { useEffect, useState } from 'react';
 import { toast } from 'sonner';
 import { useNavigate } from 'react-router';
-import { ChatCircleText, CheckCircle, GoogleLogo, Lightning, Microphone, PaperPlaneTilt, Question, Receipt, Rows, Sparkle, TextT, Trash } from '@phosphor-icons/react';
+import { ChatCircleText, CheckCircle, Gift, GoogleLogo, Lightning, Microphone, PaperPlaneTilt, Question, Receipt, Rows, Sparkle, TextT, Trash } from '@phosphor-icons/react';
+import { useCloud } from '@/cloud/store';
 import { useFinance } from '@/app/finance';
 import { useUI } from '@/app/ui-store';
 import { MOD_KEY } from '@/ui/bits';
@@ -85,7 +86,10 @@ export function AiSection({ index }: { index: number }) {
   const f = useFinance();
   const cfg = f.settings.ai;
   const ai = useAi();
-  const connected = Boolean(cfg.apiKey) || cfg.provider === 'cloud';
+  const session = useCloud((s) => s.session);
+  // Deneme: işletmenin sunucudaki anahtarı (VITE_AI_SERVER=1). Kullanıcı kendi anahtarını bağlayınca o kullanılır.
+  const trial = cfg.provider === 'cloud' && !cfg.apiKey;
+  const connected = Boolean(cfg.apiKey);
   const [provider, setProvider] = useState<KeyProvider>(cfg.provider === 'gemini' ? 'gemini' : 'groq');
   const [changing, setChanging] = useState(false);
   const [key, setKey] = useState('');
@@ -136,7 +140,7 @@ export function AiSection({ index }: { index: number }) {
     }
   }
 
-  const activeLabel = cfg.provider === 'gemini' ? LABEL.gemini : cfg.provider === 'groq' ? LABEL.groq : cfg.provider === 'cloud' ? 'İşletme sunucusu' : 'Özel servis';
+  const activeLabel = cfg.provider === 'gemini' ? LABEL.gemini : cfg.provider === 'groq' ? LABEL.groq : cfg.provider === 'cloud' ? 'Ücretsiz deneme' : 'Özel servis';
 
   return (
     <Panel reveal={index} id="yapay-zeka" className="scroll-mt-24">
@@ -152,7 +156,11 @@ export function AiSection({ index }: { index: number }) {
 
       {!connected || changing ? (
         <div className="space-y-5">
-          {!changing && <AiFeatures connected={false} />}
+          {trial && !changing && (
+            <TrialCard on={ai.enabled} signedIn={Boolean(session)} onOpen={() => setConsentOpen(true)} onClose={() => void save({ enabled: false })} />
+          )}
+          {!changing && <AiFeatures connected={trial && ai.enabled} />}
+          {trial && !changing && <div className="text-sm font-semibold text-ink">Sınırsız kullanım: kendi ücretsiz anahtarınızı bağlayın</div>}
           {/* 1. Servis */}
           <fieldset>
             <legend className="mb-2 text-sm font-semibold text-ink">1. Bir servis seçin</legend>
@@ -258,6 +266,9 @@ export function AiSection({ index }: { index: number }) {
             <li>• Groq, gönderilen verileri model eğitiminde kullanmadığını belirtir.</li>
           )}
           <li>• Defterinizin tamamı, IBAN’larınız ve dosyalarınız gönderilmez; tüm hesaplamalar cihazınızda yapılır.</li>
+          {cfg.provider === 'cloud' && !cfg.apiKey && (
+            <li>• Deneme, Mizan’ın sunucusu üzerinden ve kişi başı günlük sınırla çalışır; sınır dolunca kendi ücretsiz anahtarınızı bağlayabilirsiniz.</li>
+          )}
         </ul>
       </Modal>
     </Panel>
@@ -446,6 +457,43 @@ function Advanced({ cfg }: { cfg: AiConfig }) {
         </div>
       </div>
     </details>
+  );
+}
+
+/** Deneme yapay zekâsı: işletmenin sunucudaki anahtarı, kişi başı günlük sınırla (kurulum: VITE_AI_SERVER=1). */
+function TrialCard({ on, signedIn, onOpen, onClose }: { on: boolean; signedIn: boolean; onOpen: () => void; onClose: () => void }) {
+  const [u, setU] = useState<AiUsage | null>(getAiUsage);
+  useEffect(() => onAiUsage(setU), []);
+  return (
+    <div className="rounded-[16px] border border-cobalt/30 bg-cobalt-soft/40 p-4">
+      <div className="flex flex-wrap items-center gap-2">
+        <Gift size={18} weight="duotone" className="text-cobalt" />
+        <span className="text-sm font-semibold text-ink">Ücretsiz deneme</span>
+        {on && <Badge tone="in">Açık</Badge>}
+      </div>
+      <p className="mt-1 text-xs leading-relaxed text-muted">
+        Anahtar almadan hemen deneyin: Mizan’ın ortak yapay zekâsı, kişi başı günlük sınırla. Sınırsız kullanım için aşağıdan kendi ücretsiz anahtarınızı
+        bağlayın; bağladığınız anda o kullanılır.
+      </p>
+      <div className="mt-3 flex flex-wrap items-center gap-3">
+        {!signedIn ? (
+          <a href="#bulut" className="text-sm font-semibold text-cobalt-ink underline-offset-2 hover:underline">
+            Denemek için hesabınızla giriş yapın
+          </a>
+        ) : on ? (
+          <>
+            <span className="text-xs text-ink-2">{u?.trialRemaining != null ? `Bugün kalan hakkınız: ${u.trialRemaining}` : 'Kullandıkça bugün kalan hakkınız burada görünür.'}</span>
+            <Button size="sm" variant="ghost" onClick={onClose}>
+              Denemeyi kapat
+            </Button>
+          </>
+        ) : (
+          <Button size="sm" variant="primary" onClick={onOpen}>
+            Denemeyi aç
+          </Button>
+        )}
+      </div>
+    </div>
   );
 }
 

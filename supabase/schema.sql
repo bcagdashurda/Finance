@@ -526,6 +526,51 @@ revoke all on public.user_settings from anon;
 grant select, insert, update, delete on public.user_settings to authenticated;
 
 -- -----------------------------------------------------------------------------
+-- Deneme yapay zekâsı (ai-proxy): kişi başı günlük istek sayacı. İşletmenin ortak anahtarının günlük
+-- kotası tüm kullanıcılarca paylaşılır; tek kullanıcı tüketmesin. Gün Türkiye saatine göre döner.
+-- Kullanıcı yalnızca kendi sayacını okur; artırma yalnızca mizan_ai_take ile (atomik).
+-- -----------------------------------------------------------------------------
+create table if not exists public.ai_usage (
+  user_id  uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  day      date not null default (now() at time zone 'Europe/Istanbul')::date,
+  requests integer not null default 0,
+  primary key (user_id, day)
+);
+
+alter table public.ai_usage enable row level security;
+drop policy if exists ai_usage_own on public.ai_usage;
+create policy ai_usage_own on public.ai_usage for select to authenticated using (user_id = auth.uid());
+
+-- Bir istek hakkı kullanır ve kalan hakkı döndürür; sınır dolmuşsa -1 döner (sayaç artmaz).
+create or replace function public.mizan_ai_take(daily_limit integer)
+returns integer
+language plpgsql
+security definer
+set search_path = public
+as $$
+declare
+  uid   uuid := auth.uid();
+  today date := (now() at time zone 'Europe/Istanbul')::date;
+  used  integer;
+begin
+  if uid is null then
+    raise exception 'Giriş gerekli';
+  end if;
+  insert into public.ai_usage (user_id, day, requests) values (uid, today, 1)
+  on conflict (user_id, day) do update set requests = ai_usage.requests + 1
+    where ai_usage.requests < daily_limit
+  returning requests into used;
+  if used is null then
+    return -1;
+  end if;
+  return daily_limit - used;
+end;
+$$;
+
+revoke all on function public.mizan_ai_take(integer) from public, anon;
+grant execute on function public.mizan_ai_take(integer) to authenticated;
+
+-- -----------------------------------------------------------------------------
 -- Raporlama görünümleri (Supabase panelinden SQL ile analiz için; RLS'ye tabidir)
 -- -----------------------------------------------------------------------------
 create or replace view public.v_monthly_cashflow
@@ -563,6 +608,36 @@ having d.amount - coalesce(sum(a.amount) filter (where a.deleted_at is null), 0)
 
 grant select on public.v_monthly_cashflow to authenticated;
 grant select on public.v_open_documents to authenticated;
+
+-- -----------------------------------------------------------------------------
+-- Yetkiler — Supabase'in varsayılanlarına bırakılmadan, açıkça:
+--   anon (giriş yapmamış): hiçbir şey
+--   authenticated: yalnızca okuma/yazma; hangi satırları göreceğini yukarıdaki satır kuralları belirler
+--   service_role (sunucu işlevleri, yedek ve bakım araçları; satır kurallarını zaten atlar): okuma/yazma
+-- Yeni projelerin varsayılanı API rollerine TRUNCATE da verir; TRUNCATE satır kurallarını atladığı için
+-- hiçbir API rolüne verilmez. Uygulamanın kendisi service_role kullanmaz.
+-- -----------------------------------------------------------------------------
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'workspaces', 'workspace_members', 'accounts', 'categories', 'contacts', 'transactions', 'documents',
+    'allocations', 'recurring_rules', 'instruments', 'scenarios', 'categorization_rules', 'user_settings',
+    'v_monthly_cashflow', 'v_open_documents'
+  ]
+  loop
+    execute format('revoke all on public.%I from anon, authenticated, service_role', t);
+    execute format('grant %s on public.%I to authenticated, service_role',
+      case when t like 'v\_%' then 'select' else 'select, insert, update, delete' end, t);
+  end loop;
+end;
+$$;
+
+-- Deneme sayacı: kullanıcı yalnızca okur (artırma mizan_ai_take ile)
+revoke all on public.ai_usage from anon, authenticated, service_role;
+grant select on public.ai_usage to authenticated;
+grant select, insert, update, delete on public.ai_usage to service_role;
 
 -- Bitti. Supabase › Project Settings › API sayfasındaki  Project URL  ve  anon public  anahtarını
 -- .env.local dosyasına (VITE_SUPABASE_URL, VITE_SUPABASE_ANON_KEY) ya da Vercel'in Environment

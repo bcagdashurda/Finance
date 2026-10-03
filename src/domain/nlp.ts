@@ -107,12 +107,32 @@ function bestMatch<T>(ws: Word[], items: T[], tokensOf: (item: T) => string[]): 
   return best;
 }
 
+/**
+ * Yönü fiilin kişisi belirler: 1. kişi ("ödedim", "gönderdik") parayı işletme verdi → çıkış;
+ * 3. kişi ("Toros ödedi", "yatırdı") parayı karşı taraf verdi → giriş. Edilgen ("ödendi") yön söylemez.
+ */
+const OUT_VERB = /\b(odedim|odedik|gonderdim|gonderdik|yatirdim|yatirdik|verdim|verdik)\b|havale ettim|havale ettik|eft yaptim|eft yaptik|odeme yaptim|odeme yaptik/;
+const IN_VERB = /\b(odedi|yatirdi|gonderdi)\b/;
+
+/**
+ * Cümledeki ödeme fiilinin kişisinden para yönü; fiil yoksa ya da edilgense null. 3. kişide yönelme eki
+ * varsa ("Boya'ya ödedi": biri Boya'ya ödemiş) giriş sayılmaz.
+ */
+export function verbDirection(text: string): 'in' | 'out' | null {
+  const n = normalizeTr(text);
+  if (OUT_VERB.test(n)) return 'out';
+  if (IN_VERB.test(n) && !/['’]y?[ae]\b/.test(n)) return 'in';
+  return null;
+}
+
 const KIND_PATTERNS: Array<[EntryKind, RegExp]> = [
   ['receivable', /fatura(si)? kes|satis faturasi|alacak kayd|fatura(yi)? gonderdim/],
   ['payable', /fatura(si)? geldi|alis faturasi|fatura(si)? ulasti|borc kayd|tahakkuk/],
   ['transfer', /virman|transfer|aktar(dim|ma)|hesaplar arasi/],
-  ['collect', /tahsil|havale geldi|odedi|yatirdi|gonderdi|cek aldim/],
-  ['pay', /odeme|odedim|odendi|gonderdim|havale ettim|eft yaptim/],
+  // 1. kişi önce: "ödedim" içinde "ödedi" de geçer
+  ['pay', OUT_VERB],
+  ['collect', new RegExp(`tahsil|havale geldi|cek aldim|${IN_VERB.source}`)],
+  ['pay', /odeme|odendi/],
   ['income', /\bgelir|faiz geliri|kazanc|satis\b/],
   ['expense', /gider|harcama|masraf|aldim|satin/],
 ];

@@ -345,7 +345,9 @@ function ImportWizard({ onDone }: { onDone: () => void }) {
                       return hit ? { ...r, ...hit, edited: true, suggestion: { ...hit, confidence: 0.8, source: 'ai' as const } } : r;
                     }),
                   );
-                  toast.success(`${result.size} satır sınıflandırıldı`, { description: 'Kontrol edip onaylayın; onayladıklarınız kural olarak öğrenilir.' });
+                  if (result.size) toast.success(`${result.size} satır sınıflandırıldı`, { description: 'Kontrol edip onaylayın; onayladıklarınız kural olarak öğrenilir.' });
+                  // Yapay zekâ emin olmadığında tahmin etmez (yanlış öneri kurala dönüşüp her ay tekrarlanır)
+                  else toast('Yapay zekâ bu satırlardan emin olamadı', { description: 'Yanlış eşleştirmektense boş bıraktı; kategoriyi ya da cariyi siz seçin.' });
                 } catch (e) {
                   toast.error('Sınıflandırma başarısız', { description: e instanceof Error ? e.message : '' });
                 } finally {

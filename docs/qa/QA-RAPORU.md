@@ -337,3 +337,29 @@ Testler: birim 12 yeni (ad gizleme 4, istem yapısı 2, yanıt doğrulama ve IBA
 - Bilerek ertelenen: diğer bankaların ekstre biçimleri (pilottan gelecek gerçek ekstrelerle), `ai-proxy` sunucu işlevi (yalnızca yapay zekâyı herkese siz sağlarsanız gerekir).
 
 Ekran: `anahtar-guvenligi.png`, `bagli.png` (test çıktıları)
+
+## S15 · S16 — Gerçek Groq ve gerçek Supabase ile kullanıcı gibi (2026-10-03) — 🔧
+
+Anahtar, Supabase projesi ve GitHub deposu verildikten sonra hiçbir şey taklit edilmeden (gerçek Chrome, gerçek Groq, gerçek Supabase, Frankfurt) oynandı.
+
+**Yapay zekâ istemleri — eski ve yeni, aynı 30 örnek (Groq, gpt-oss-20b):**
+
+| | Eski istem | Yeni istem |
+|---|---|---|
+| Yazarak kayıt, adlar açık / gizli | %89 / %91 | **%98 / %98** |
+| Ekstre, adlar açık / gizli | %88 / %76 | %94 / %88–100 |
+| Ters yönlü kategori | 0 | 0 |
+
+Yeni istemin ilk sürümü 3 durumda geriledi ("yemek kartına yükledik", "maaşlar yatırıldı", "Türk Telekom faturası"); kurala bağlanarak düzeltildi: yönü fiilin kişisi belirler, aktarımın iki ucu da işletmenin hesabı olmalı, "fatura" vergi değildir, göreli günler hesaplanmaz takvimden okunur (model "geçen cuma"yı 25 yerine 24 Eylül buluyordu). İstem uzadı (kayıt 2.709 → 3.387 karakter); şişme testinin sınırı, ölçümde kazandırdığı için güncellendi. Ekstre ölçümü tek çağrı olduğundan çalıştırmadan çalıştırmaya oynuyor (aynı istemle %88 ve %100). Sonuçlar: `docs/qa/ai-eval/`.
+
+**Hata — yapay zekâsız kayıtta para yönü ters:** kural tabanlı ayrıştırıcı "tahsilat" kalıbını önce arıyordu ve "ödedi" kalıbı "ödedim"in içinde de geçiyordu: "Boya Kimya'ya 12.500 TL ödedim" ve "…gönderdim" **tahsilat** öneriliyordu (varsayılan, yapay zekâsız yol). Düzeltme: fiilin kişisi — 1. kişi ("ödedim", "gönderdik") çıkış, 3. kişi ("Toros ödedi") giriş, yönelme ekli 3. kişi ("Boya'ya ödedi") belirsiz. Aynı kural yapay zekânın cevabını da denetliyor (küçük model "Toros Deterjan ödedi"yi inatla ödeme sanıyordu).
+
+**S15 · Yapay zekâ ekranları (gerçek Groq):** Ayarlar'da anahtar yapıştır → Bağlan → onay (anahtar ekranda maskeli) · "Yıldız'dan dün 45 bin tahsilat geldi" → Tahsilat, ₺45.000, Yıldız Gıda, Satış gelirleri, 2 Ekim (dün) → kaydedildi · asistan "Bu ay en çok nereye harcadık?" → "Yazılım ve abonelikler (₺4.650)", araç sonucundan, tablo/Markdown yok · ekstre: kurallar 13 satırın 11'ini eşleştirdi, kalan 2 bilinmeyen firmayı yapay zekâ tahmin etmeden boş bıraktı (mesaj "0 satır sınıflandırıldı" yerine artık "emin olamadı, siz seçin") · hatırlatma yeniden yazımı: tüm tutarlar ve IBAN korundu · brifing: eşik altı riski ve aranacak cariyi öne aldı.
+
+**S16 · Bulut (gerçek Supabase): 11/11.** E-postası doğrulanmış iki test kullanıcısı (yönetici API'siyle) → cihaz A kendi işletmesini kurdu, hesap ve cari ekledi, giriş yapıp buluta yükledi (25 kayıt) → yapay zekâ anahtarı hesaba yazıldı → cihaz B "hesabıma giriş yap" ile işletmeyi indirdi; **anahtar yeniden sorulmadan hazırdı** → B'nin eklediği cari A'da göründü → muhasebeci "Görüntüleyici" eklendi, okuyabildi; yazmayı deneyince ekranda "yetkiniz yok", sunucuya hiçbir şey yazılmadı (yönetici sorgusuyla doğrulandı) → test kullanıcıları silindi, işletme kalmadı.
+
+**Bulunan — Supabase'in yeni varsayılan yetkileri:** yeni projelerde API rollerine tablolarda yalnızca TRUNCATE/REFERENCES/TRIGGER veriliyor; bu yüzden (1) yönetici rolü tablolara erişemiyordu (testteki yönetici sorguları sessizce boş dönüyordu — test düzeltildi, artık hata yutmuyor), (2) giriş yapmış kullanıcıda TRUNCATE vardı (satır kurallarını atlar; Supabase'in REST/GraphQL yolları çalıştıramadığı için sömürülemezdi). `schema.sql` artık yetkileri açıkça veriyor: giriş yapmamış hiçbir şey, kullanıcı ve yönetici yalnızca okuma/yazma, TRUNCATE kimsede yok. Yerel Postgres'te 43/43 (sertleştirme ve deneme sayacı dahil), sonra canlı veritabanına uygulandı.
+
+**Ücretsiz deneme (kullanıcı isteği):** işletmenin Groq anahtarı sunucuda (`ai-proxy`), yalnızca giriş yapmış kullanıcıya, kişi başı günlük sınırla (`ai_usage` + atomik `mizan_ai_take`; gün Türkiye saatiyle döner); sınır dolunca yeniden denenmez, "kendi ücretsiz anahtarınızı bağlayın" denir; kullanıcı kendi anahtarını bağlayınca o kullanılır. Bulunan: bu modda kurulumu yapanın ayarı kullanıcının onayı sayılıyordu ve kullanıcı kendi anahtarını giremiyordu — ikisi düzeltildi (her kullanıcı verinin nereye gittiğini görüp kendisi açar).
+
+**Yerel testler artık kurulumdan bağımsız:** `.env.local`'daki bulut ayarı testlere sızmasın diye testler `--mode e2e` (`.env.e2e`) ile derleniyor; yayın derlemesinde gizli anahtar olmadığı tarandı (yalnızca yayınlanabilir anahtar var).

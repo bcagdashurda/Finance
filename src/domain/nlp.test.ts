@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseEntry, type EntryContext } from './nlp';
+import { parseEntry, verbDirection, type EntryContext } from './nlp';
 
 const ctx: EntryContext = {
   today: '2026-09-29',
@@ -31,6 +31,24 @@ describe('parseEntry', () => {
   it('reads a payment to a supplier', () => {
     const d = parseEntry('Ege Kâğıt’a 120.000 TL ödeme yaptım', ctx);
     expect(d).toMatchObject({ kind: 'pay', amount: 12_000_000, contactId: 'ege', date: '2026-09-29' });
+  });
+
+  it('fiilin kişisi yönü belirler: "ödedim" ödeme, "ödedi" tahsilat', () => {
+    // Eski hata: "ödedim" içinde "ödedi" geçtiği için tedarikçiye ödeme tahsilat sanılıyordu
+    expect(parseEntry("Ege Kâğıt'a 12.500 TL ödedim", ctx)).toMatchObject({ kind: 'pay', contactId: 'ege' });
+    expect(parseEntry("Ege Kâğıt'a 12.500 TL gönderdik", ctx)).toMatchObject({ kind: 'pay', contactId: 'ege' });
+    expect(parseEntry('Kuzey Mobilya ödedi 80 bin', ctx)).toMatchObject({ kind: 'collect', contactId: 'kuzey' });
+    expect(parseEntry('Yıldız 45 bin yatırdı', ctx)).toMatchObject({ kind: 'collect', contactId: 'yildiz' });
+    expect(parseEntry('dün akaryakıta 3.450 TL verdim', ctx)).toMatchObject({ kind: 'expense' });
+  });
+
+  it('verbDirection: 1. kişi çıkış, 3. kişi giriş, edilgen ve yönelme ekli 3. kişi belirsiz', () => {
+    expect(verbDirection('Boya’ya 12 bin ödedim')).toBe('out');
+    expect(verbDirection('havale ettik')).toBe('out');
+    expect(verbDirection('Toros Deterjan ödedi 2 milyon')).toBe('in');
+    expect(verbDirection('maaşlar yatırıldı')).toBeNull();
+    expect(verbDirection("ortağım Boya'ya ödedi")).toBeNull();
+    expect(verbDirection('kira ödemesi 42 bin')).toBeNull();
   });
 
   it('reads an expense with a keyword category and account', () => {

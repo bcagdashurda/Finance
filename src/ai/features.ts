@@ -1,6 +1,6 @@
 import type { Finance } from '@/app/finance';
 import { buildEntryContext } from '@/app/entry-context';
-import { normalizeTr, parseEntry, type EntryKind, type ParsedEntry } from '@/domain/nlp';
+import { normalizeTr, parseEntry, verbDirection, type EntryKind, type ParsedEntry } from '@/domain/nlp';
 import { isISODate } from '@/domain/dates';
 import { isCurrencyCode, toMinor } from '@/domain/money';
 import type { ID } from '@/domain/types';
@@ -89,9 +89,15 @@ export async function parseEntryAI(text: string, f: Finance, config: AiConfig): 
   });
   const contactId = byName(f.contacts, out.contact ? m.unmask(out.contact) : null)?.id ?? rule.contactId;
   let kind: EntryKind = out.kind ?? rule.kind;
-  // Karşıda cari varsa nakit hareketi cari hareketidir (gelir → tahsilat, gider → ödeme)
+  // Karşıda cari varsa nakit hareketi cari hareketidir (gelir → tahsilat, gider → ödeme); yoksa tersi
   if (contactId && kind === 'income') kind = 'collect';
   if (contactId && kind === 'expense') kind = 'pay';
+  if (!contactId && kind === 'collect') kind = 'income';
+  if (!contactId && kind === 'pay') kind = 'expense';
+  // Fiilin kişisi açıkça yön söylüyorsa dilbilgisi kazanır (ölçüm: küçük model "Toros ödedi"yi ödeme sanıyor)
+  const dir = verbDirection(text);
+  if (dir === 'in' && (kind === 'pay' || kind === 'expense')) kind = contactId ? 'collect' : 'income';
+  if (dir === 'out' && (kind === 'collect' || kind === 'income')) kind = contactId ? 'pay' : 'expense';
   const side = sideOf(kind);
   const ruleCategory = side && f.categoriesById.get(rule.categoryId ?? '')?.kind === side ? rule.categoryId : undefined;
   return {

@@ -66,12 +66,14 @@ Giriş yapan kullanıcının yapay zekâ anahtarı hesabına da kaydedilir (`use
 
 ## 3. İnternette yayınlamak (isteğe bağlı)
 
-### 3.1 (İsteğe bağlı) Yapay zekâyı herkese siz sağlayın
-Kullanıcılar kendi ücretsiz anahtarlarını girebilir (1. bölüm). Bunun yerine yapay zekâyı **sizin anahtarınızla** herkese açmak isterseniz anahtar tarayıcıya **inmemeli**, sunucuda durmalı:
+### 3.1 (İsteğe bağlı) Ücretsiz deneme: yapay zekâyı sizin anahtarınızla sunun
+Kullanıcılar kendi ücretsiz anahtarlarını girebilir (1. bölüm). Anahtar almadan denemeleri için **sizin anahtarınızı** açabilirsiniz. Anahtar tarayıcıya **hiç inmez**, Supabase sunucusunda durur:
 1. Supabase'de **Edge Functions › Deploy a new function › Via Editor** → adı **`ai-proxy`**.
 2. `supabase/functions/ai-proxy/index.ts` dosyasının tamamını yapıştırın → **Deploy**.
-3. **Edge Functions › Secrets › Add new secret:** `GROQ_API_KEY` = `gsk_…`
-4. Ortam değişkenlerine `VITE_AI_SERVER=1` ekleyin. Giriş yapmış her kullanıcı yapay zekâyı sizin sunucunuz üzerinden kullanır; Ayarlar'da "İşletme sunucusu bağlı" görünür.
+3. **Edge Functions › Secrets › Add new secret:** `GROQ_API_KEY` = `gsk_…` (isteğe bağlı `AI_DAILY_LIMIT` = kişi başı günlük istek, varsayılan 40).
+4. Ortam değişkenlerine (Vercel) `VITE_AI_SERVER=1` ekleyin.
+
+Nasıl çalışır: hesabıyla giriş yapan kullanıcı Ayarlar › Yapay zekâ'da **"Ücretsiz deneme"** kartını görür; verinin nereye gittiğini okuyup **"Denemeyi aç"** der (onay kullanıcıdan alınır, kurulumdan sayılmaz). Kişi başı günlük sınır dolunca "kendi ücretsiz anahtarınızı bağlayın" denir. Kullanıcı kendi anahtarını bağladığı anda o kullanılır; deneme devreden çıkar. Ücretsiz Groq kotası (günde ~1.000 istek) tüm kullanıcılar arasında paylaşılır; sınır tek kişinin tüketmesini önler (sayaç: `ai_usage` tablosu, gün Türkiye saatiyle döner).
 
 ### 3.2 Vercel'e yükleme
 1. Kodu GitHub'a gönderin (`.env.local` gönderilmez; `.gitignore` bunu engeller).
@@ -98,7 +100,8 @@ Netlify kullanırsanız `public/_redirects` ve `public/_headers` dosyaları ayn�
 | Doğrulama bağlantısı "localhost'a bağlanılamadı" | 2.2'deki **Site URL** yanlış ya da Mizan çalışmıyor (`Mizan-Baslat.bat`). |
 | "Invalid API key" (bulut) | Project URL ile anahtar farklı projelerden; ikisini aynı projeden kopyalayın. |
 | Tablo bulunamadı / "relation does not exist" | `schema.sql` çalıştırılmamış ya da yarım kopyalanmış; tamamını yeniden **Run**. |
-| Yapay zekâ: "Mizan'da giriş yapmalısınız" | `VITE_AI_SERVER=1` ama kullanıcı giriş yapmamış: Ayarlar › Hesap ve eşitleme'den giriş yapılmalı. |
+| Yapay zekâ: "Deneme yapay zekâsı için … giriş yapmalısınız" | `VITE_AI_SERVER=1` ama kullanıcı giriş yapmamış: Ayarlar › Hesap ve eşitleme'den giriş yapılmalı (ya da kendi anahtarını bağlamalı). |
+| "Bugünkü deneme hakkınız doldu" | Kişi başı günlük deneme sınırı (`AI_DAILY_LIMIT`); ertesi gün yenilenir ya da kullanıcı kendi ücretsiz anahtarını bağlar. |
 | "Anahtar geçersiz ya da yetkisiz" | Anahtar eksik/yanlış kopyalanmış ya da silinmiş; "Nasıl alınır?" rehberiyle yeni anahtar alın. |
 | Yapay zekâ: "GROQ_API_KEY tanımlı değil" | 3.1 adım 3 (Secret) eksik. |
 | "Ücretsiz kullanım limiti doldu" | Groq ücretsiz katmanının dakikalık sınırı; uygulama bir kez kendisi yeniden dener, olmazsa biraz bekleyin. |

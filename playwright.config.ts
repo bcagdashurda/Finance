@@ -49,7 +49,8 @@ export default defineConfig({
     { name: 'firefox-1366', use: { ...devices['Desktop Firefox'], viewport: { width: 1366, height: 768 } } },
   ],
   webServer: {
-    command: `npm run build && npx vite preview --port ${PORT} --strictPort`,
+    // --mode e2e: .env.e2e, .env.local'daki bulut/yapay zekâ ayarlarını boşaltır (testler kurulumdan bağımsız)
+    command: `npx vite build --mode e2e && npx vite preview --port ${PORT} --strictPort`,
     url: `http://localhost:${PORT}`,
     reuseExistingServer: !process.env.CI,
     timeout: 180_000,

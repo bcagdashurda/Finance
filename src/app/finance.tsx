@@ -24,7 +24,9 @@ export function resolveAiConfig(stored: Partial<AiConfig> | undefined): AiConfig
   if (cfg.apiKey || cfg.provider === 'openai-compatible') return cfg;
   const env = import.meta.env;
   const fromEnv = { enabled: stored?.enabled ?? true, consentAt: cfg.consentAt ?? 'env' };
-  if (env.VITE_AI_SERVER === '1') return { ...cfg, ...fromEnv, provider: 'cloud' };
+  // Deneme yapay zekâsı (işletmenin sunucudaki anahtarı): kurulumu yapanın ayarı kullanıcının onayı sayılmaz;
+  // her kullanıcı Ayarlar'da verinin nereye gittiğini görüp kendisi açar.
+  if (env.VITE_AI_SERVER === '1') return { ...cfg, provider: 'cloud', enabled: stored?.enabled ?? false, consentAt: cfg.consentAt === 'env' ? undefined : cfg.consentAt };
   const groq = (env.VITE_GROQ_API_KEY as string | undefined)?.trim();
   if (groq) return { ...withProvider(cfg, 'groq'), ...fromEnv, apiKey: groq };
   const gemini = (env.VITE_GEMINI_API_KEY as string | undefined)?.trim();

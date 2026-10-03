@@ -14,10 +14,14 @@ describe('resolveAiConfig', () => {
     expect(c.model).toMatch(/^gemini-/);
   });
 
-  it('routes AI through the operator’s server when VITE_AI_SERVER=1', () => {
+  it('deneme yapay zekâsı (VITE_AI_SERVER=1): sunucu üzerinden, ama kullanıcı kendisi onaylayana kadar kapalı', () => {
     vi.stubEnv('VITE_AI_SERVER', '1');
     vi.stubEnv('VITE_GROQ_API_KEY', 'gsk_ENV');
-    expect(resolveAiConfig(undefined)).toMatchObject({ provider: 'cloud', consentAt: 'env', enabled: true });
+    const c = resolveAiConfig(undefined);
+    expect(c).toMatchObject({ provider: 'cloud', enabled: false, apiKey: '' });
+    expect(c.consentAt).toBeUndefined();
+    // Kullanıcı Ayarlar'da onay verince açılır
+    expect(resolveAiConfig({ enabled: true, consentAt: '2026-10-03T10:00:00Z' })).toMatchObject({ provider: 'cloud', enabled: true, consentAt: '2026-10-03T10:00:00Z' });
   });
 
   it('never overrides a key the user entered in Settings', () => {

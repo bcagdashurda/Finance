@@ -56,10 +56,11 @@ describe('istemler', () => {
   });
 
   it('istemler sessizce şişmez (ücretsiz katmanın token sınırı; ölçüm: 2026-10-03 + %10 pay)', () => {
-    // Bu sınırı aşan bir değişiklik, gerçek değerlendirmede (prompts.eval.test.ts) kazandırdığını göstermeli
+    // Bu sınırı aşan bir değişiklik, gerçek değerlendirmede (prompts.eval.test.ts) kazandırdığını göstermeli.
+    // Kayıt 2.709 → 3.387 (fiilin kişisi, aktarımın iki ucu, takvim): Groq'ta kayıt doğruluğu %87–91 → %98.
     const t = '2026-10-03';
-    expect(entryPrompt({ contacts: [], incomeCategories: [], expenseCategories: [], accounts: [], today: t }).length).toBeLessThanOrEqual(3000);
-    expect(categorizePrompt({ incomeCategories: [], expenseCategories: [], contacts: [] }).length).toBeLessThanOrEqual(2170);
+    expect(entryPrompt({ contacts: [], incomeCategories: [], expenseCategories: [], accounts: [], today: t }).length).toBeLessThanOrEqual(3730);
+    expect(categorizePrompt({ incomeCategories: [], expenseCategories: [], contacts: [] }).length).toBeLessThanOrEqual(2440);
     expect(reminderPrompt({ tone: 'kararli', maxDaysLate: 12, habit: null }).length).toBeLessThanOrEqual(1640);
     for (const k of ['brifing', 'rapor', 'ay'] as const) expect(narratePrompt(k).length).toBeLessThanOrEqual(1340);
     expect(assistantPrompt({ business: 'X', today: t }).length).toBeLessThanOrEqual(2090);
@@ -145,6 +146,17 @@ describe('modelin yanıtı cihazda doğrulanır (adlar gizli)', () => {
     fakeModel('Sayın yetkili, ödemenizi bekliyoruz.');
     text = await draftReminderFn({ tone: 'resmi', draft }, f, config);
     expect(text.endsWith(`IBAN: ${iban}`)).toBe(true);
+  });
+
+  it('model yönü fiilin kişisine ters söylerse dilbilgisi kazanır ("Toros ödedi" tahsilattır)', async () => {
+    fakeModel(
+      JSON.stringify({
+        kind: 'pay', amount: 2300000, currency: 'TRY', date: '2026-09-29', due_date: null,
+        contact: alias('Toros Deterjan San. A.Ş.'), category: null, account: null, description: '',
+      }),
+    );
+    const r = await parseEntryAI('Toros Deterjan ödedi 2 milyon 300 bin', f, config);
+    expect(r.kind).toBe('collect');
   });
 
   it('özet türüne göre farklı amaç verir; etiketler ve Markdown temizliği', async () => {

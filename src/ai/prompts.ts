@@ -12,7 +12,7 @@
  * Rakamlar cihazda, deterministik olarak hesaplanır; model hesap yapmaz, yorumlar ve eşleştirir.
  * Önbellek dostu sıralama: değişmeyen talimatlar başta, listeler ortada, günün tarihi en sonda.
  */
-import { dayOfWeek, type ISODate } from '@/domain/dates';
+import { addDays, dayOfWeek, type ISODate } from '@/domain/dates';
 import type { ContactKind } from '@/domain/types';
 
 const AYLAR = ['Ocak', 'Şubat', 'Mart', 'Nisan', 'Mayıs', 'Haziran', 'Temmuz', 'Ağustos', 'Eylül', 'Ekim', 'Kasım', 'Aralık'];
@@ -22,6 +22,20 @@ const GUNLER = ['Pazar', 'Pazartesi', 'Salı', 'Çarşamba', 'Perşembe', 'Cuma'
 export function todayLine(today: ISODate): string {
   const [y, m, d] = today.split('-').map(Number) as [number, number, number];
   return `Bugün: ${d} ${AYLAR[m - 1]} ${y}, ${GUNLER[dayOfWeek(today)]} (${today}).`;
+}
+
+const GUN_KISA = ['Paz', 'Pzt', 'Sal', 'Çar', 'Per', 'Cum', 'Cmt'];
+
+/**
+ * Bugünün bir hafta öncesi ve sonrası, haftanın günleriyle. Küçük modeller "geçen cuma"yı hesaplarken
+ * yanılıyor (ölçüm: 25 yerine 24 Eylül); hesaplatmak yerine okutmak daha güvenilir.
+ */
+export function calendarLine(today: ISODate): string {
+  const days = Array.from({ length: 15 }, (_, i) => addDays(today, i - 7)).map((d) => {
+    const [, m, day] = d.split('-').map(Number) as [number, number, number];
+    return `${day} ${AYLAR[m - 1]!.slice(0, 3)} ${GUN_KISA[dayOfWeek(d)]}${d === today ? ' (bugün)' : ''}`;
+  });
+  return `Takvim: ${days.join(' · ')}`;
 }
 
 const KIND_GROUP: Array<[ContactKind, string]> = [
@@ -62,12 +76,12 @@ export function entryPrompt(p: EntryPromptInput): string {
 
 Türü (kind) iki soruyla bul:
 1. Para şimdi el değiştirdi mi? Evet (geldi, yatırdı, tahsil ettim, ödedim, gönderdim) → nakit hareketi. Hayır, yalnızca hak ya da yükümlülük doğdu (fatura kestim, fatura geldi, vadeli sattım/aldım) → belge: receivable (bize ödenecek) ya da payable (bizim ödeyeceğimiz).
-2. Nakit hareketinde yön ve karşı taraf: işletmeye giren para, karşıda listedeki bir cari varsa collect, yoksa income (faiz, kira geliri gibi). Çıkan para için aynı ayrımla pay ya da expense (akaryakıt, banka masrafı gibi). İşletmenin kendi iki hesabı arasındaki para (bankadan kasaya, TL'den dövize) transfer'dir; gelir ya da gider değildir.
-Yönü sözcük değil fiil ve hâl eki belirler: "Akın ödedi", "Akın'dan geldi" giriş; "Akın'a ödedim" çıkış. "Ödeme" sözcüğü tek başına yön söylemez. Belirsiz cümlede carinin türü ipucudur: müşteriden para gelir, tedarikçiye gider.
+2. Nakit hareketinde yön ve karşı taraf: işletmeye giren para, karşıda listedeki bir cari varsa collect, yoksa income (faiz, kira geliri gibi). Çıkan para için aynı ayrımla pay ya da expense (akaryakıt, banka masrafı gibi). Para işletmenin listedeki iki hesabı arasında yer değiştiriyorsa (bankadan kasaya, TL'den dövize) transfer'dir; bir uç işletme dışındaysa (personelin yemek kartı, bir kişi, bir mağaza) transfer değil, gider ya da ödemedir.
+Yönü sözcük değil, fiilin kişisi ve hâl eki belirler. Özne cariyse, yani fiil 3. kişiyse ("Akın ödedi", "Akın yatırdı", "Akın'dan geldi") parayı veren caridir → giriş. Fiil 1. kişiyse ("ödedim", "gönderdik") ya da cari yönelme ekiyle geçiyorsa ("Akın'a") parayı veren işletmedir → çıkış. Edilgen fiil ("ödendi", "yatırıldı") yön söylemez; o zaman konuya bak: maaş, kira, vergi, SGK, fatura gibi işletmenin yükümlülükleri çıkıştır. Belirsiz cümlede carinin türü de ipucudur: müşteriden para gelir, tedarikçiye gider.
 
 Tutar: nokta binlik, virgül ondalık ayırıcıdır ("45.000,50" → 45000.5); sözlü biçimi sayıya çevir ("45 bin" → 45000, "1,5 milyon" → 1500000, "2 milyon 300 bin" → 2300000). Tutar yoksa null; tahmin etme. Para birimi yazılmadıysa TRY; dolar/$ USD, euro/avro/€ EUR, sterlin/£ GBP.
 
-Tarih: date işlemin gerçekleştiği ya da belgenin düzenlendiği gündür; "Bugün"e göre çöz ("dün", "geçen cuma", "ayın 15'i"), söylenmediyse bugün. "Vade", "son ödeme" gibi ileride ödenecek an due_date'tir; çoğunlukla belgelerde olur, nakit hareketinde genellikle null. Yılı söylenmeyen gün: gerçekleşmiş işlem geçmişe, vade geleceğe düşer.
+Tarih: date işlemin gerçekleştiği ya da belgenin düzenlendiği gündür; söylenmediyse bugün. Göreli günleri ("dün", "geçen cuma", "önümüzdeki salı") hesaplama, en sondaki takvimden oku: "geçen cuma" bugünden önceki en yakın cumadır. "Vade", "son ödeme" gibi ileride ödenecek an due_date'tir; çoğunlukla belgelerde olur, nakit hareketinde genellikle null. Yılı söylenmeyen gün: gerçekleşmiş işlem geçmişe, vade geleceğe düşer.
 
 Adlar: contact, category, account alanlarına yalnızca aşağıdaki listelerden birebir ad yaz. Kullanıcı adı kısaltır, ek getirir, küçük harfle yazar ("akından" → "Akın Yapı Ltd. Şti."): cümle anlamca tek adaya işaret ediyorsa onu seç; iki aday eşit uyuyorsa ya da hiçbiri uymuyorsa null. Kategori yöne uymalı: giriş → gelir, çıkış → gider kategorisi; transferde null. Hesap adı ya da açık ipucu ("kasadan", "dolar hesabına") yoksa account null.
 
@@ -80,7 +94,8 @@ ${contactsByKind(p.contacts)}
 Gelir kategorileri: ${list(p.incomeCategories)}
 Gider kategorileri: ${list(p.expenseCategories)}
 Hesaplar (para birimi): ${list(p.accounts.map((a) => `${a.name} (${a.currency})`))}
-${todayLine(p.today)}`;
+${todayLine(p.today)}
+${calendarLine(p.today)}`;
 }
 
 // ---------------------------------------------------------------------------
@@ -102,6 +117,7 @@ Her satırı sırayla düşün:
 3. Para ne için el değiştirdi? Ekonomik amaca en yakın kategoriyi seç. Kategori adları kullanıcının sözcükleridir, anlamca örtüşeni seç; işlemin terimi bir kategori adında geçiyorsa (ör. "SGK") en güçlü eşleşme odur. İşaret yönü kesin belirler: pozitif tutar yalnızca gelir, negatif tutar yalnızca gider kategorisi alır.
 
 Ekstre dili: SGK = sosyal güvenlik primi; muhtasar, stopaj, KDV, damga vergisi, MTV = vergi; BSMV, KKDF, hesap işletim ücreti, EFT ücreti, komisyon = banka masrafı; POS satış, üye işyeri = kartlı satış tahsilatı; OTS, otomatik ödeme = talimatlı fatura ödemesi; virman = kendi hesapları arası aktarım: gelir ya da gider değildir, kategori ve cari null.
+"FATURA" bir mal ya da hizmet faturasıdır (telefon, internet, elektrik, su…), vergi değildir; vergi yalnızca KDV, muhtasar, stopaj, damga, MTV, harç gibi adlarla geçer. Türk Telekom, Turkcell, Vodafone, Superonline = telefon/internet aboneliği.
 Carinin tahsilatı ya da ödemesi olan satırda contact yeterlidir; kategori açıkça belliyse ekle. Her girdi satırı için aynı id ile tam bir öğe döndür.
 ${ALIAS_RULE}
 ${DATA_RULE}

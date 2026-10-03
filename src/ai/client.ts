@@ -63,6 +63,8 @@ export interface AiUsage {
   remainingRequests: number | null;
   limitRequests: number | null;
   remainingTokens: number | null;
+  /** Deneme yapay zekâsında (ai-proxy) bugün kalan kişisel hak */
+  trialRemaining?: number | null;
   at: string;
 }
 let usage: AiUsage | null = null;
@@ -74,9 +76,16 @@ function readUsage(res: Response) {
     return v === null || v === '' ? null : Number(v);
   };
   const limitRequests = n('x-ratelimit-limit-requests');
-  if (limitRequests === null) return;
-  usage = { limitRequests, remainingRequests: n('x-ratelimit-remaining-requests'), remainingTokens: n('x-ratelimit-remaining-tokens'), at: new Date().toISOString() };
+  const trialRemaining = n('x-mizan-trial-remaining');
+  if (limitRequests === null && trialRemaining === null) return;
+  usage = { limitRequests, remainingRequests: n('x-ratelimit-remaining-requests'), remainingTokens: n('x-ratelimit-remaining-tokens'), trialRemaining, at: new Date().toISOString() };
   usageListeners.forEach((l) => l(usage!));
+}
+
+/** Deneme hakkı dolduysa (ai-proxy): yeniden denemek anlamsız; sunucunun Türkçe mesajı gösterilir. */
+async function trialExhausted(res: Response): Promise<AiError | null> {
+  if (res.status !== 429 || res.headers.get('x-mizan-trial') !== 'exhausted') return null;
+  return new AiError('rate', errorMessage(await res.text()));
 }
 
 export function getAiUsage(): AiUsage | null {
@@ -201,6 +210,8 @@ export async function chat(config: AiConfig, opts: ChatOptions): Promise<ChatRes
       if ((e as Error).name === 'AbortError') throw e;
       throw new AiError('network', 'Yapay zekâ servisine ulaşılamadı. İnternet bağlantınızı kontrol edin.');
     }
+    const exhausted = await trialExhausted(res);
+    if (exhausted) throw exhausted;
     if (res.status === 429 && attempt < 2) {
       const header = res.headers.get('retry-after');
       const retry = header !== null && Number.isFinite(Number(header)) ? Number(header) : 4 * (attempt + 1);
@@ -326,6 +337,8 @@ export async function transcribe(config: AiConfig, audio: Blob): Promise<string>
     throw new AiError('network', 'Ses servisine ulaşılamadı.');
   }
   readUsage(res);
+  const exhausted = await trialExhausted(res);
+  if (exhausted) throw exhausted;
   if (!res.ok) throw friendly(res.status, await res.text());
   const json = await res.json();
   return String(json.text ?? '').trim();
