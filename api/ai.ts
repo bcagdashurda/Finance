@@ -1,5 +1,5 @@
 // =============================================================================
-// Mizan · Ücretsiz deneme (Vercel sunucu işlevi: /api/ai/*)
+// Mizan · Ücretsiz deneme (Vercel sunucu işlevi: /api/ai/* → api/ai.ts, yönlendirme vercel.json'da)
 //
 // İşletmenin Groq anahtarı Vercel'in sunucu tarafı ortam değişkeninde (GROQ_API_KEY, VITE_ öneksiz) durur;
 // sitenin koduna ve tarayıcıya hiç inmez. Demo işletmede yapay zekâ bununla kendiliğinden çalışır; kullanıcının
@@ -26,7 +26,9 @@ const fail = (status: number, message: string) => json(status, { error: { messag
 
 export default async function handler(req: Request): Promise<Response> {
   const url = new URL(req.url);
-  const path = url.pathname.replace(/^\/api\/ai/, '') || '/';
+  // Vercel'de /api/ai/<yol> yönlendirmeyle ?path=<yol> olarak gelir (vercel.json); yerelde doğrudan yol
+  const sub = url.searchParams.get('path');
+  const path = sub !== null ? `/${sub.replace(/^\/+/, '')}` : url.pathname.replace(/^\/api\/ai/, '') || '/';
   const groqKey = env('GROQ_API_KEY');
 
   if (path === '/status') return json(200, { available: Boolean(groqKey) });

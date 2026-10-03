@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import handler from '../../api/ai/[...path]';
+import handler from '../../api/ai';
 import { effectiveAiConfig, DEFAULT_AI, type AiConfig } from './config';
 import { demoTrialConfig } from './trial';
 
@@ -46,6 +46,18 @@ describe('ücretsiz deneme sunucu işlevi', () => {
     expect(calls).toHaveLength(1);
     expect(calls[0]!.url).toBe('https://api.groq.com/openai/v1/chat/completions');
     expect((calls[0]!.init.headers as Record<string, string>).Authorization).toBe('Bearer gsk_SUNUCU');
+  });
+
+  it("Vercel'in yönlendirdiği biçim (/api/ai?path=chat/completions) de aynı yere gider", async () => {
+    const calls = fakeGroq();
+    const viaRewrite = new Request('https://app-mizan.vercel.app/api/ai?path=chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Origin: 'https://app-mizan.vercel.app' },
+      body: JSON.stringify({ model: 'openai/gpt-oss-20b', messages: [] }),
+    });
+    expect((await handler(viaRewrite)).status).toBe(200);
+    expect(calls[0]!.url).toBe('https://api.groq.com/openai/v1/chat/completions');
+    expect(await (await handler(new Request('https://app-mizan.vercel.app/api/ai?path=status'))).json()).toEqual({ available: true });
   });
 
   it('başka siteden, izinsiz uç noktaya ya da başka modelle kullanılamaz', async () => {

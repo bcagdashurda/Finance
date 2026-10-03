@@ -5,7 +5,7 @@ import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react';
 import tailwindcss from '@tailwindcss/vite';
 import { VitePWA } from 'vite-plugin-pwa';
-import trialHandler from './api/ai/[...path]';
+import trialHandler from './api/ai';
 
 /**
  * Vercel'deki ücretsiz deneme işlevini (api/ai) yerel geliştirme ve önizleme sunucusunda da çalıştırır:
