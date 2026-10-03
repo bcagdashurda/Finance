@@ -14,6 +14,8 @@ const GROQ = 'https://api.groq.com/openai/v1';
 const ALLOWED = new Set(['/chat/completions', '/audio/transcriptions']);
 /** Uygulamanın kullandığı modeller; başka modelle ortak kota tüketilmesin */
 const MODELS = /^(openai\/gpt-oss-(20b|120b)|whisper-large-v3(-turbo)?)$/;
+/** Günlük sınırı dolan modelin yerine (ücretsiz katmanda her modelin günlük token hakkı ayrı) */
+const FALLBACK: Record<string, string> = { 'openai/gpt-oss-20b': 'openai/gpt-oss-120b', 'openai/gpt-oss-120b': 'openai/gpt-oss-20b' };
 const PASS = ['content-type', 'retry-after', 'x-ratelimit-limit-requests', 'x-ratelimit-remaining-requests', 'x-ratelimit-remaining-tokens'];
 const MAX_BODY = 4 * 1024 * 1024;
 
@@ -42,19 +44,24 @@ export default async function handler(req: Request): Promise<Response> {
   const body = await req.arrayBuffer();
   if (body.byteLength > MAX_BODY) return fail(413, 'İstek çok büyük.');
   const contentType = req.headers.get('content-type') ?? '';
+  let chat: Record<string, unknown> | null = null;
   if (path === '/chat/completions') {
-    let model = '';
     try {
-      model = String((JSON.parse(new TextDecoder().decode(body)) as { model?: unknown }).model ?? '');
+      chat = JSON.parse(new TextDecoder().decode(body)) as Record<string, unknown>;
     } catch {
       return fail(400, 'İstek okunamadı.');
     }
-    if (!MODELS.test(model)) return fail(400, 'Denemede bu model kullanılamaz.');
+    if (!MODELS.test(String(chat.model ?? ''))) return fail(400, 'Denemede bu model kullanılamaz.');
   }
 
   const headers: Record<string, string> = { Authorization: `Bearer ${groqKey}` };
   if (contentType) headers['Content-Type'] = contentType;
-  const upstream = await fetch(GROQ + path, { method: 'POST', headers, body });
+  let upstream = await fetch(GROQ + path, { method: 'POST', headers, body });
+  // Ücretsiz katmanda her modelin günlük token sınırı ayrıdır: biri dolunca öbürüyle dene (kapasite ~2 kat)
+  const alt = chat ? FALLBACK[String(chat.model)] : undefined;
+  if (upstream.status === 429 && alt && /per day/i.test(await upstream.clone().text())) {
+    upstream = await fetch(GROQ + path, { method: 'POST', headers, body: JSON.stringify({ ...chat, model: alt }) });
+  }
   const out = new Headers({ 'Cache-Control': 'no-store' });
   for (const h of PASS) {
     const v = upstream.headers.get(h);

@@ -13,6 +13,8 @@ const req = (path: string, init: RequestInit = {}) =>
   });
 
 beforeEach(() => vi.stubEnv('GROQ_API_KEY', 'gsk_SUNUCU'));
+/** İşlev gövdeyi ilk istekte ham (ArrayBuffer), yedek denemede metin olarak gönderir */
+const bodyJson = (init: RequestInit) => JSON.parse(typeof init.body === 'string' ? init.body : new TextDecoder().decode(init.body as ArrayBuffer));
 afterEach(() => {
   vi.unstubAllEnvs();
   vi.unstubAllGlobals();
@@ -58,6 +60,35 @@ describe('ücretsiz deneme sunucu işlevi', () => {
     expect((await handler(viaRewrite)).status).toBe(200);
     expect(calls[0]!.url).toBe('https://api.groq.com/openai/v1/chat/completions');
     expect(await (await handler(new Request('https://app-mizan.vercel.app/api/ai?path=status'))).json()).toEqual({ available: true });
+  });
+
+  it('bir modelin günlük sınırı dolunca istek öbür modele gider; dakikalık sınırda gitmez', async () => {
+    const calls: string[] = [];
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        const model = bodyJson(init).model as string;
+        calls.push(model);
+        if (model === 'openai/gpt-oss-20b')
+          return new Response(JSON.stringify({ error: { message: 'Rate limit reached for model `openai/gpt-oss-20b` on tokens per day (TPD): Limit 200000' } }), { status: 429 });
+        return new Response('{"choices":[{"message":{"content":"tamam"}}]}', { status: 200, headers: { 'Content-Type': 'application/json' } });
+      }),
+    );
+    const res = await handler(req('/chat/completions'));
+    expect(res.status).toBe(200);
+    expect(calls).toEqual(['openai/gpt-oss-20b', 'openai/gpt-oss-120b']);
+
+    // Dakikalık sınır (kısa bekleme) yedeğe geçirmez: istemci bekleyip yeniden dener
+    calls.length = 0;
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async (_url: string, init: RequestInit) => {
+        calls.push(bodyJson(init).model);
+        return new Response(JSON.stringify({ error: { message: 'Rate limit reached on tokens per minute (TPM)' } }), { status: 429, headers: { 'retry-after': '3' } });
+      }),
+    );
+    expect((await handler(req('/chat/completions'))).status).toBe(429);
+    expect(calls).toEqual(['openai/gpt-oss-20b']);
   });
 
   it('başka siteden, izinsiz uç noktaya ya da başka modelle kullanılamaz', async () => {
