@@ -74,7 +74,8 @@ Anahtar sitenin koduna girmez; yalnızca Vercel'deki sunucu işlevinde (`api/ai`
 - **Demo işletmede** yapay zekâ kendiliğinden açıktır (örnek veri; onay ya da kayıt gerekmez).
 - **Kullanıcının kendi işletmesinde** kendiliğinden açılmaz: Ayarlar › Yapay zekâ'daki **"Ücretsiz deneme ile aç"** ya da yapay zekâ isteyen her yerdeki **"Ücretsiz dene"** kısayoluyla (sesle kayıt, asistan, ekstre sınıflandırma, hatırlatma, rapor özeti, brifing, aylık hikâye), verinin nereye gittiğini okuyup tek tıkla açar.
 - Kullanıcı kendi anahtarını bağladığı anda o kullanılır.
-- Süre ve kişi başı sınır yoktur; Groq ücretsiz katmanının ortak sınırı (günde ~1.000 istek, dakikada sınırlı) herkes için geçerlidir — dolarsa o gün durur, ertesi gün yenilenir. İşlev yalnızca bu siteden ve uygulamanın kullandığı modellerle çağrılabilir.
+- Süre ve kişi başı sınır yoktur; Groq ücretsiz katmanının ortak sınırı herkes için geçerlidir: model başına günde 200.000 token (≈ 150–200 yazarak kayıt ya da 50–100 asistan sorusu, tüm kullanıcılar toplam). Bir modelin günü dolarsa işlev otomatik olarak öbür modele geçer; ikisi de dolarsa kayan 24 saat içinde açılır. İşlev yalnızca bu siteden ve uygulamanın kullandığı modellerle çağrılabilir.
+- **Ölçüm ve testleri ayrı bir Groq anahtarıyla yapın**; aynı anahtarı kullanırsanız denemenin günlük hakkını tüketirler.
 
 *Alternatif (giriş yapmış kullanıcılar, kişi başı günlük sınırla):* Supabase'de `supabase/functions/ai-proxy` işlevini kurup `GROQ_API_KEY` sırrını ekleyin ve Vercel'e `VITE_AI_SERVER=1` yazın (sayaç: `ai_usage`).
 
