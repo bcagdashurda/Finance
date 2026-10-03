@@ -17,6 +17,7 @@
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { categorizeBatch, parseEntryAI } from './features';
+import { AiError } from './client';
 import { detectProvider, withProvider, type AiConfig } from './config';
 import { demoFinance, testAiConfig } from '@/test/demoFinance';
 import type { EntryKind } from '@/domain/nlp';
@@ -86,6 +87,18 @@ const LINES: LineCase[] = [
 
 const oneOf = <T,>(expected: T | T[], got: T) => (Array.isArray(expected) ? expected.includes(got) : expected === got);
 
+/** Ücretsiz katmanın dakikalık sınırı dolarsa bekleyip yeniden dene (ölçüm yarıda kalmasın). */
+async function patient<T>(fn: () => Promise<T>): Promise<T> {
+  for (let i = 0; ; i++) {
+    try {
+      return await fn();
+    } catch (e) {
+      if (!(e instanceof AiError) || e.kind !== 'rate' || i >= 6) throw e;
+      await new Promise((r) => setTimeout(r, Math.min(60, e.retryAfter ?? 20) * 1000));
+    }
+  }
+}
+
 function takeUsage() {
   const u = { ...usage };
   Object.assign(usage, { calls: 0, prompt: 0, completion: 0, cached: 0 });
@@ -132,7 +145,7 @@ describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'}
       const cases: unknown[] = [];
       takeUsage();
       for (const c of ENTRY) {
-        const r = await parseEntryAI(c.text, f, config);
+        const r = await patient(() => parseEntryAI(c.text, f, config));
         const checks: Array<[string, boolean]> = [['tür', oneOf(c.kind, r.kind)]];
         if (c.amount !== undefined) checks.push(['tutar', r.amount === Math.round(c.amount * 100)]);
         if (c.currency) checks.push(['para', r.currency === c.currency]);
@@ -151,12 +164,12 @@ describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'}
       report[`kayit-${mask ? 'gizli' : 'acik'}`] = { score: ok / total, ok, total, usage: u, cases };
       console.log(`\nKayıt (${mask ? 'gizli' : 'açık'}): ${ok}/${total} alan doğru (%${Math.round((ok / total) * 100)}) · ${u.calls} çağrı, ${u.prompt} istem + ${u.completion} yanıt token (${u.cached} önbellekten)\n${rows.join('\n')}`);
       expect(ok / total).toBeGreaterThanOrEqual(0.85);
-    }, 240_000);
+    }, 900_000);
 
     it(`ekstre sınıflandırma — adlar ${mask ? 'gizli' : 'açık'}`, async () => {
       const lines = LINES.map((l, i) => ({ id: i + 1, description: l.description, amount: Math.round(l.amount * 100) }));
       takeUsage();
-      const out = await categorizeBatch(lines, f, config);
+      const out = await patient(() => categorizeBatch(lines, f, config));
       const u = takeUsage();
       let ok = 0;
       let total = 0;
@@ -180,6 +193,6 @@ describe.skipIf(!provider)(`istem değerlendirmesi (${provider ?? 'anahtar yok'}
       console.log(`\nEkstre (${mask ? 'gizli' : 'açık'}): ${ok}/${total} alan doğru (%${Math.round((ok / total) * 100)}) · ${u.calls} çağrı, ${u.prompt} istem + ${u.completion} yanıt token (${u.cached} önbellekten)\n${rows.join('\n')}`);
       expect(wrongSide).toBe(0);
       expect(ok / total).toBeGreaterThanOrEqual(0.85);
-    }, 240_000);
+    }, 900_000);
   }
 });
