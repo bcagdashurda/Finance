@@ -140,16 +140,7 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
 
   async function toggleMic() {
     if (!ai.enabled) {
-      toast('Sesle kayıt yapay zekâyla çalışır', {
-        description: gate.hint,
-        action: {
-          label: gate.label,
-          onClick: () => {
-            onClose();
-            gate.open();
-          },
-        },
-      });
+      void gate.notify('Sesle kayıt yapay zekâyla çalışır', onClose);
       return;
     }
     try {
@@ -158,7 +149,8 @@ function PaletteBody({ onClose }: { onClose: () => void }) {
         const blob = await rec.stop();
         setAiBusy(true);
         const text = await ai.transcribe(blob);
-        setQuery(text);
+        if (text) setQuery(text);
+        else toast('Ses anlaşılamadı', { description: 'Mikrofona yakın ve net konuşup tekrar deneyin.' });
       }
     } catch (e) {
       toast.error('Ses alınamadı', { description: e instanceof Error ? e.message : 'Mikrofon izni gerekli' });

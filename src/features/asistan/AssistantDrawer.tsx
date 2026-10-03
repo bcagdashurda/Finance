@@ -108,7 +108,7 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
         ? 'Serbest soruları yanıtlayabilmem için yapay zekâ gerekli. “Ücretsiz dene” ile anahtar almadan hemen açabilirsiniz. Hazır sorular cihazınızda yanıtlanır.'
         : 'Serbest soruları yanıtlayabilmem için Ayarlar › Yapay zekâ’dan ücretsiz bir Groq ya da Gemini anahtarı bağlamanız gerekiyor. Hazır sorular cihazınızda yanıtlanır.';
       setTurns((t) => [...t, { role: 'assistant', content: offlineAnswer ?? need, tools: offlineAnswer ? ['Cihazda hesaplandı'] : [] }]);
-      if (!offlineAnswer) toast('Serbest soru yapay zekâyla yanıtlanır', { description: gate.hint, action: { label: gate.label, onClick: openGate } });
+      if (!offlineAnswer) void gate.notify('Serbest soru yapay zekâyla yanıtlanır', onClose);
       return;
     }
     setBusy(true);
@@ -126,7 +126,7 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
 
   async function toggleMic() {
     if (!ai.enabled) {
-      toast('Sesle soru yapay zekâyla çalışır', { description: gate.hint, action: { label: gate.label, onClick: openGate } });
+      void gate.notify('Sesle soru yapay zekâyla çalışır', onClose);
       return;
     }
     try {
@@ -137,6 +137,7 @@ function AssistantBody({ onClose }: { onClose: () => void }) {
         const text = await ai.transcribe(blob);
         setBusy(false);
         if (text) void send(text);
+        else toast('Ses anlaşılamadı', { description: 'Mikrofona yakın ve net konuşup tekrar deneyin.' });
       }
     } catch (e) {
       setBusy(false);

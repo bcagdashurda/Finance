@@ -283,6 +283,17 @@ async function base64(blob: Blob): Promise<string> {
  */
 const STT_INSTRUCTION =
   'Bu Türkçe ses kaydını yazıya dök. Yalnızca söyleneni yaz; yorum ya da açıklama ekleme. Tutarları ve tarihleri rakamla yaz ("kırk beş bin lira" → "45 bin lira", "on beş ekim" → "15 Ekim"). Kayıtta konuşma yoksa boş yanıt ver.';
+/**
+ * Whisper sessizlik ve gürültüde altyazı verisinden öğrendiği kalıpları uydurur (ölçüm: bip sesine "Altyazı M.K.").
+ * Bunlar kayıt cümlesi değildir: boş sayılır, kullanıcıya "ses anlaşılamadı" denir.
+ */
+const HALLUCINATION = /^(altyaz[ıi]( m\.? ?k\.?)?|izlediğiniz için teşekkür(ler| ederim)|abone olmayı unutmayın|teşekkürler|teşekkür ederim|sesli betimleme)[\s.!]*$/u;
+export const realSpeech = (text: string): string => {
+  const t = text.trim();
+  // "İ" büyük/küçük harf duyarsız düzenli ifadeye uymaz: Türkçe kurallarla küçült
+  return HALLUCINATION.test(t.toLocaleLowerCase('tr-TR')) ? '' : t;
+};
+
 /** Whisper biçimi örnekten öğrenir (talimat değil, yazım örneği); gerçek cari adı içermez. */
 const WHISPER_STYLE = 'Akın Yapı’dan 45.000 TL tahsilat geldi. 12.500 lira kira ödedim, vadesi 15 Ekim.';
 
@@ -312,7 +323,7 @@ async function transcribeGemini(config: AiConfig, audio: Blob): Promise<string> 
   }
   if (!res.ok) throw friendly(res.status, await res.text());
   const json = await res.json();
-  return String(json.candidates?.[0]?.content?.parts?.[0]?.text ?? '').trim();
+  return realSpeech(String(json.candidates?.[0]?.content?.parts?.[0]?.text ?? ''));
 }
 
 /** Türkçe konuşmayı yazıya çevirir: Groq'ta Whisper, Gemini'de modelin kendisi. */
@@ -341,5 +352,5 @@ export async function transcribe(config: AiConfig, audio: Blob): Promise<string>
   if (exhausted) throw exhausted;
   if (!res.ok) throw friendly(res.status, await res.text());
   const json = await res.json();
-  return String(json.text ?? '').trim();
+  return realSpeech(String(json.text ?? ''));
 }

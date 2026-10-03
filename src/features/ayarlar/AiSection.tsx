@@ -143,7 +143,9 @@ export function AiSection({ index }: { index: number }) {
     }
   }
 
-  const activeLabel = cfg.provider === 'gemini' ? LABEL.gemini : cfg.provider === 'groq' ? LABEL.groq : cfg.provider === 'trial' ? 'Ücretsiz deneme' : cfg.provider === 'cloud' ? 'İşletme sunucusu' : 'Özel servis';
+  // Etkin sağlayıcı (demo'da kendiliğinden açılan deneme kayıtlı ayarda görünmez)
+  const live = ai.config.provider;
+  const activeLabel = live === 'gemini' ? LABEL.gemini : live === 'groq' ? LABEL.groq : live === 'trial' ? 'Ücretsiz deneme' : live === 'cloud' ? 'İşletme sunucusu' : 'Özel servis';
 
   return (
     <Panel reveal={index} id="yapay-zeka" className="scroll-mt-24">

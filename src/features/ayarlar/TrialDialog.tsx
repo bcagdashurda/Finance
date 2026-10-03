@@ -5,7 +5,7 @@ import { Gift } from '@phosphor-icons/react';
 import { useFinance } from '@/app/finance';
 import { Modal } from '@/ui/Overlay';
 import { Button } from '@/ui/Button';
-import { startTrial, useTrial } from '@/ai/trial';
+import { startTrial, trialAvailable, useTrial } from '@/ai/trial';
 
 /** Deneme nedir, sınırları neler: onay penceresinde ve Ayarlar'da aynı metin. */
 export function TrialFacts({ className }: { className?: string }) {
@@ -85,10 +85,28 @@ export function useAiGate() {
   const available = useTrial((s) => s.available);
   const navigate = useNavigate();
   useEffect(() => useTrial.getState().check(), []);
-  return {
-    trial: available === true,
-    label: available ? 'Ücretsiz dene' : 'Ayarlar',
-    hint: available ? 'Anahtar almadan ücretsiz deneyebilirsiniz.' : 'Ayarlar › Yapay zekâ’dan ücretsiz bir anahtar bağlayın.',
-    open: () => (useTrial.getState().available ? useTrial.getState().setDialogOpen(true) : navigate('/ayarlar#yapay-zeka')),
+  // Sayfa yeni açılmışken hızlı tıklamada yoklama henüz dönmemiş olabilir: cevabı bekle
+  const resolve = async (): Promise<boolean> => {
+    const known = useTrial.getState().available;
+    if (known !== null) return known;
+    const a = await trialAvailable();
+    useTrial.setState({ available: a });
+    return a;
   };
+  const open = async () => ((await resolve()) ? useTrial.getState().setDialogOpen(true) : navigate('/ayarlar#yapay-zeka'));
+  /** Yapay zekâ kapalıyken bilgi notu; düğmesi deneme varsa "Ücretsiz dene", yoksa "Ayarlar". */
+  const notify = async (title: string, beforeOpen?: () => void) => {
+    const trial = await resolve();
+    toast(title, {
+      description: trial ? 'Anahtar almadan ücretsiz deneyebilirsiniz.' : 'Ayarlar › Yapay zekâ’dan ücretsiz bir anahtar bağlayın.',
+      action: {
+        label: trial ? 'Ücretsiz dene' : 'Ayarlar',
+        onClick: () => {
+          beforeOpen?.();
+          void open();
+        },
+      },
+    });
+  };
+  return { trial: available === true, open, notify };
 }

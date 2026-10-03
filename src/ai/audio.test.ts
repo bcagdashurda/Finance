@@ -32,3 +32,13 @@ describe('ses kaydı biçimleri', () => {
     expect([v.getInt16(44, true), v.getInt16(46, true), v.getInt16(48, true), v.getInt16(50, true)]).toEqual([0, 32767, -32768, 32767]);
   });
 });
+
+describe('ses → metin', () => {
+  it('Whisper uydurmaları (sessizlik/gürültü) boş sayılır, gerçek cümle korunur', async () => {
+    const { realSpeech } = await import('./client');
+    expect(realSpeech(' Altyazı M.K.')).toBe('');
+    expect(realSpeech('İzlediğiniz için teşekkürler.')).toBe('');
+    expect(realSpeech('Abone olmayı unutmayın!')).toBe('');
+    expect(realSpeech(' Yıldız’dan 45 bin tahsilat geldi. ')).toBe('Yıldız’dan 45 bin tahsilat geldi.');
+  });
+});
