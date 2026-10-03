@@ -532,3 +532,9 @@
     display: none !important;
   }
 }
+
+/* Açık bir pencere (komut paleti, form) gövdeye pointer-events:none verir; bildirimler de dışarıda kaldığı için
+   "Ücretsiz dene", "Yenile" gibi bildirim düğmeleri tıklanamıyordu (canlı testte bulundu). */
+[data-sonner-toast] {
+  pointer-events: auto;
+}
